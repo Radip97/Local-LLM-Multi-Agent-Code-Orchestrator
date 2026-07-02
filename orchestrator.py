@@ -106,6 +106,24 @@ class Orchestrator:
                 f.write(file_content)
             console.print(f"[green]✓ Wrote file: {rel_path}[/green]")
 
+    def verify_syntax(self, file_content: str, filepath: str) -> tuple[bool, str]:
+        """
+        Verifies if the code content is syntactically valid python.
+        Returns (is_valid, error_message).
+        """
+        if not filepath.endswith(".py"):
+            return True, ""
+            
+        try:
+            compile(file_content, filepath, 'exec')
+            return True, ""
+        except SyntaxError as e:
+            error_msg = f"SyntaxError in {filepath} at line {e.lineno}, column {e.offset}:\n{e.text}\nError: {e.msg}"
+            return False, error_msg
+        except Exception as e:
+            return False, f"Compilation failed: {e}"
+
+
     def run(self, user_request: str):
         console.print(Panel(f"[bold blue]Starting Agent Workflow[/bold blue]\n[bold]Target Directory:[/bold] {self.target_dir}\n[bold]Task:[/bold] {user_request}", title="Local Agent Orchestrator"))
 
@@ -183,6 +201,20 @@ class Orchestrator:
             # Render a summary of what the developer did without printing full massive file dumps if they are long
             console.print(Panel(Markdown(code_changes), title=f"Developer Output (Iteration {iteration})"))
             
+            # 1.5 Local compiler syntax validation
+            files_to_validate = self.parse_file_blocks(code_changes)
+            syntax_errors = []
+            for rel_path, file_content in files_to_validate:
+                is_valid, error_msg = self.verify_syntax(file_content, rel_path)
+                if not is_valid:
+                    syntax_errors.append(error_msg)
+                    
+            if syntax_errors:
+                error_summary = "\n\n".join(syntax_errors)
+                console.print(Panel(f"[bold red]Local compiler check failed![/bold red]\n{error_summary}", title="Syntax Validation Error", border_style="red"))
+                dev_history += f"\n\n[Iteration {iteration} Syntax Error Traceback]\n{error_summary}"
+                continue
+            
             # 2. QA reviews the generated code
             with console.status("[cyan]QA is reviewing developer code...[/cyan]"):
                 qa_response = self.qa.review_code(
@@ -200,7 +232,7 @@ class Orchestrator:
                 files_to_write = self.parse_file_blocks(code_changes)
                 if not files_to_write:
                     console.print("[red]QA approved but no valid file blocks (<file path='...'>) were found in the output. Rejecting locally.[/red]")
-                    dev_history += f"\n\n[Iteration {iteration} Code Output]\n{code_changes}\n\nSystem Notice: No file blocks parsed. You must output files wrapped in <file path='...'>...</file> tags containing the complete updated file content."
+                    dev_history += f"\n\n[Iteration {iteration} System Notice]\nNo file blocks parsed. You must output files wrapped in <file path='...'>...</file> tags containing the complete updated file content."
                     continue
                     
                 approved_code = code_changes
@@ -208,7 +240,7 @@ class Orchestrator:
                 break
             else:
                 console.print(f"[yellow]✗ Code changes rejected. Feeding feedback back to developer.[/yellow]")
-                dev_history += f"\n\n[Iteration {iteration} Code Output]\n{code_changes}\n\nQA Feedback:\n{feedback}"
+                dev_history += f"\n\n[Iteration {iteration} QA Feedback]\n{feedback}"
                 
         if not approved_code:
             console.print("[red]QA rejected all developer code attempts. Aborting workflow.[/red]")

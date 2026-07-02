@@ -50,4 +50,7 @@ IGNORE_EXTENSIONS = {
     ".woff2",
     ".ttf",
     ".eot",
+    ".log",
+    ".json",
+    ".csv",
 }
