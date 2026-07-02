@@ -90,11 +90,9 @@ python main.py --target-dir /path/to/your/project --prompt "Implement a clear bu
 
 If you run `python main.py` without arguments, it will interactively prompt you for a task description and default to writing inside `./target_workspace`.
 
----
-
 ## Verification & Demonstration
 
-The system was verified by implementing a complete Tkinter GUI calculator inside `test_target_project/`:
-1. **Goal**: Create a Tkinter GUI calculator importing math operations from `calc.py` with safe inputs (no `eval()`), multiple decimal validation, and clear state management.
-2. **Execution**: The local QA agent successfully **rejected** the first run because the planner tried to use the unsafe `eval()` function, and rejected the second run due to a layout overlap collision (Clear button overlapping with the Entry display).
-3. **Outcome**: The self-healing loops resolved the QA feedback and outputted a clean, robust calculator in [test_target_project/gui_calc.py](file:///C:/Users/radip/.gemini/antigravity/scratch/local-agent-workflow/test_target_project/gui_calc.py).
+The system was verified by implementing an HTTP Web Server Log Analyzer:
+1. **Goal**: Create a mock log generator producing Apache/Nginx Combined Log Format files and an analyzer to parse, collect metrics, save JSON reports, and print console stats.
+2. **Execution**: The local QA agent successfully **rejected** early drafts because the planner generated invalid IP ranges (`0.x.x.x` and `256.x.x.x`) and didn't support `-` placeholders in bytes-sent metrics, which would crash real-world log parsers.
+3. **Outcome**: The feedback loops resolved all QA issues, resulting in clean, robust code for `log_generator.py` and `log_analyzer.py` inside the local `test_target_project` workspace.
