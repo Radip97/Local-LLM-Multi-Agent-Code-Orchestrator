@@ -21,6 +21,13 @@ Review Guidelines:
 2. Do NOT reject code for subjective design nits, cosmetic preferences, or minor gameplay adjustments (e.g., "consider storing paddle position instead of centering", "randomize angle choice", "verify if constants exist").
 3. If the code compiles cleanly, runs without crashes, and satisfies the step goal, you MUST APPROVE it. Do not trap the development loop in subjective nitpick cycles.
 
+Logical & Runtime Checklist:
+Please trace the execution flow of the code and verify:
+- **Game Loops**: If the code uses Tkinter `.after()` or equivalent, make sure the loop always reschedules itself under all pathways (so it doesn't freeze or die).
+- **Canvas / Resource Clearing**: When drawing elements continuously or clearing screens (e.g. canvas.delete("all")), ensure all tracking IDs are reset to None so they can be redrawn.
+- **Event Bindings**: Double check event binding strings (e.g. `<Space>` with capital S for spacebar, arrow keys) to ensure they match Tkinter requirements.
+- **State Initialization**: Ensure all accessed attributes are initialized in `__init__` to avoid AttributeErrors.
+
 ---
 
 ### EXAMPLE EXPECTED FORMAT:
