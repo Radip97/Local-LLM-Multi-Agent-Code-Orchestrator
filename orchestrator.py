@@ -166,6 +166,33 @@ class Orchestrator:
         except Exception as e:
             return False, f"Compilation failed: {e}"
 
+    def should_route_direct(self, prompt: str) -> bool:
+        """
+        Determines if the request is informational/conversational and should
+        bypass the full multi-agent planning/QA loop.
+        """
+        p = prompt.strip().lower()
+        
+        # Conversational / investigative phrases at start
+        question_starters = (
+            "explain", "what", "why", "how does", "how do", "where", 
+            "who", "which", "tell me", "describe", "document", "show me",
+            "read", "analyze", "list"
+        )
+        
+        if p.startswith(question_starters):
+            return True
+                
+        # Informational keywords anywhere in prompt (if not requesting file creation/writing)
+        info_keywords = {"difference", "how it works", "explain", "clarify", "documentation", "meaning"}
+        for kw in info_keywords:
+            if kw in p:
+                # Only check for explicit action commands
+                action_words = {"create file", "write file", "modify file", "fix bug", "refactor code"}
+                if not any(aw in p for aw in action_words):
+                    return True
+                    
+        return False
 
     def run(self, user_request: str):
         console.print(Panel(f"[bold blue]Starting Agent Workflow[/bold blue]\n[bold]Target Directory:[/bold] {self.target_dir}\n[bold]Task:[/bold] {user_request}", title="Local Agent Orchestrator"))
@@ -178,6 +205,21 @@ class Orchestrator:
             except Exception as e:
                 console.print(f"[red]Error: Could not connect to local LLM server at {config.API_BASE_URL}. Ensure LM Studio/Ollama is running. Details: {e}[/red]")
                 sys.exit(1)
+
+        # ----------------------------------------------------
+        # Fast Path Query Routing
+        # ----------------------------------------------------
+        if self.should_route_direct(user_request):
+            console.print("\n[bold green]=== FAST PATH: DIRECT QUERY ROUTED ===[/bold green]")
+            codebase_context = self.get_codebase_context(user_request)
+            
+            with console.status("[cyan]Querying model directly...[/cyan]"):
+                system_prompt = "You are a helpful programming assistant. Answer the user's question directly and concisely based on the provided codebase context."
+                user_prompt = f"### Codebase Context:\n{codebase_context}\n\n### User Question:\n{user_request}"
+                direct_response = self.planner.call_llm(system_prompt, user_prompt, temperature=0.2)
+                
+            console.print(Panel(Markdown(direct_response), title="Direct Response", border_style="green"))
+            return True
 
         # ----------------------------------------------------
         # Phase 1: Planning Loop
