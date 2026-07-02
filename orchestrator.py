@@ -166,6 +166,37 @@ class Orchestrator:
         except Exception as e:
             return False, f"Compilation failed: {e}"
 
+    def extract_file_plans(self, approved_plan: str, sub_task_desc: str) -> str:
+        """
+        Extracts relevant parts of the approved plan matching the files mentioned in the sub-task.
+        """
+        # Find all file names mentioned in the sub-task
+        files = re.findall(r"[\w\-]+\.(?:py|js|css|html|json|csv|txt)", sub_task_desc, re.IGNORECASE)
+        if not files:
+            # Fallback to the ## Proposed Changes section of the plan
+            match = re.search(r"(## Proposed Changes[\s\S]*?)(?=\n##\s|\Z)", approved_plan)
+            if match:
+                return match.group(1).strip()
+            return approved_plan
+
+        extracted_plans = []
+        for f in set(files):
+            escaped_f = re.escape(f)
+            # Match any header (#+ followed by optional tags and the filename) up to the next header of equal/higher level or any new header starting with #
+            pattern = rf"(#+\s+.*{escaped_f}.*[\s\S]*?)(?=\n#+|\Z)"
+            match = re.search(pattern, approved_plan, re.IGNORECASE)
+            if match:
+                extracted_plans.append(match.group(1).strip())
+                
+        if extracted_plans:
+            return "### Specific Plan Details:\n\n" + "\n\n".join(extracted_plans)
+            
+        # Second fallback
+        match = re.search(r"(## Proposed Changes[\s\S]*?)(?=\n##\s|\Z)", approved_plan)
+        if match:
+            return match.group(1).strip()
+        return approved_plan
+
     def should_route_direct(self, prompt: str) -> bool:
         """
         Determines if the request is informational/conversational and should
@@ -271,6 +302,7 @@ class Orchestrator:
             files_to_write = []
             
             sub_task_instruction = f"Current Step to Implement (Step {step_idx} of {len(sub_tasks)}): {sub_task}"
+            step_plan = self.extract_file_plans(approved_plan, sub_task)
             
             for iteration in range(1, config.MAX_CODE_ITERATIONS + 1):
                 console.print(f"\n[bold]Development Iteration {iteration}/{config.MAX_CODE_ITERATIONS}[/bold]")
@@ -281,8 +313,8 @@ class Orchestrator:
                 # 1. Developer implements changes for this step
                 with console.status(f"[cyan]Developer is implementing Step {step_idx}...[/cyan]"):
                     code_changes = self.developer.write_code(
-                        user_request=f"{user_request}\n\n{sub_task_instruction}",
-                        approved_plan=approved_plan,
+                        user_request=f"Overall Goal: {user_request}\n\n### CURRENT EXCLUSIVE STEP TO IMPLEMENT:\n{sub_task_instruction}\n\nCRITICAL: Implement ONLY the changes specified in the CURRENT STEP. Do NOT create or modify other files ahead of time. Focus exclusively on the files needed for this step.",
+                        approved_plan=step_plan,
                         codebase_context=codebase_context,
                         developer_history=dev_history
                     )
@@ -306,8 +338,8 @@ class Orchestrator:
                 # 2. QA reviews the generated code for this step
                 with console.status(f"[cyan]QA is reviewing Developer code for Step {step_idx}...[/cyan]"):
                     qa_response = self.qa.review_code(
-                        user_request=f"{user_request}\n\n{sub_task_instruction}",
-                        approved_plan=approved_plan,
+                        user_request=f"Overall Goal: {user_request}\n\n### CURRENT EXCLUSIVE STEP TO REVIEW:\n{sub_task_instruction}\n\nCRITICAL: Review ONLY the changes specified in the CURRENT STEP. Verify if the developer focused exclusively on this step's files.",
+                        approved_plan=step_plan,
                         code_changes=code_changes,
                         codebase_context=codebase_context
                     )
