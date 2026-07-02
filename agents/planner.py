@@ -27,9 +27,10 @@ Provide a numbered checklist of the individual, granular implementation steps ne
 ...
 
 Checklist Guidelines:
-- For complex projects (e.g. creating games, adding large components, multi-file codebases), you MUST break the work down into at least 4 to 6 granular steps.
-- Each step must focus on one specific part of the system (e.g. Step 1: Base window/layout skeleton, Step 2: Implement class A, Step 3: Implement physics/interactions, Step 4: Setup UI HUD/scoreboards).
-- NEVER bundle the entire implementation into a single step. Make each step small and incremental so the developer can write it reliably.
+- Break the work down into 5 to 7 highly granular, progressive steps.
+- Step 1 MUST be a simple skeleton of the target file(s) with class/function placeholders, window/canvas initialization, and empty loops, but NO complex physics or movement logic.
+- Do NOT make a step that says "Create game.py" and tries to implement the whole game. Implement the features incrementally step-by-step (e.g., Step 2: Paddle movement, Step 3: Ball wall physics, Step 4: Brick collision, Step 5: HUD and Game Over state).
+- Ensure each step is tiny and focused so the developer can write it reliably.
 
 ## Proposed Changes
 List every file that needs to change. Under each file, describe the exact logic additions or modifications.
