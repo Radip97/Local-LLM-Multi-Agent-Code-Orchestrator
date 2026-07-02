@@ -180,19 +180,7 @@ class Orchestrator:
             "read", "analyze", "list"
         )
         
-        if p.startswith(question_starters):
-            return True
-                
-        # Informational keywords anywhere in prompt (if not requesting file creation/writing)
-        info_keywords = {"difference", "how it works", "explain", "clarify", "documentation", "meaning"}
-        for kw in info_keywords:
-            if kw in p:
-                # Only check for explicit action commands
-                action_words = {"create file", "write file", "modify file", "fix bug", "refactor code"}
-                if not any(aw in p for aw in action_words):
-                    return True
-                    
-        return False
+        return p.startswith(question_starters)
 
     def run(self, user_request: str):
         console.print(Panel(f"[bold blue]Starting Agent Workflow[/bold blue]\n[bold]Target Directory:[/bold] {self.target_dir}\n[bold]Task:[/bold] {user_request}", title="Local Agent Orchestrator"))

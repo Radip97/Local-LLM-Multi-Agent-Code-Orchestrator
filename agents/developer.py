@@ -21,6 +21,29 @@ Guidelines:
 3. Keep other unrelated code in the files intact. Do not delete existing functionality unless instructed by the plan.
 4. You can write multiple `<file path="...">` blocks if the plan requires changes to multiple files.
 5. Provide a brief explanation of your changes *outside* the `<file>` blocks.
+
+---
+
+### EXAMPLE EXPECTED FORMAT:
+
+### EXAMPLE INPUT:
+User Coding Request: Add a subtract function to calc.py.
+Approved Plan:
+### MODIFY `calc.py`
+- Add a subtract function that takes a and b and returns a - b.
+
+### EXAMPLE OUTPUT:
+Here is the code to add the subtract function:
+
+<file path="calc.py">
+def add(a, b):
+    return a + b
+
+def subtract(a, b):
+    return a - b
+</file>
+
+I added the `subtract` function as outlined in the plan.
 """
 
 class DeveloperAgent(BaseAgent):

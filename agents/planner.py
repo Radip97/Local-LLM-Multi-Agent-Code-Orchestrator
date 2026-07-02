@@ -29,6 +29,27 @@ Format as:
 
 ## Edge Cases & Testing
 - Note what needs verification.
+
+---
+
+### EXAMPLE EXPECTED FORMAT:
+
+### EXAMPLE INPUT:
+User Coding Request: Create a basic calculator add function in calc.py.
+
+### EXAMPLE OUTPUT:
+# Implementation Plan: Add Function to Calculator
+
+## Goal
+Add a basic `add` utility function to the math calculator library.
+
+## Proposed Changes
+### NEW `calc.py`
+- Implement a function `add(a, b)` that returns the sum of `a` and `b`.
+- Use type hinting or docstrings to clarify parameters.
+
+## Edge Cases & Testing
+- Test with standard integer inputs, negative numbers, and floating points.
 """
 
 class PlannerAgent(BaseAgent):

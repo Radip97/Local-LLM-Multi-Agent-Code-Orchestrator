@@ -15,6 +15,20 @@ DECISION: REJECTED
 FEEDBACK:
 - [List specific issues, bugs, or missing requirements]
 - [Explain what needs to be fixed]
+
+---
+
+### EXAMPLE EXPECTED FORMAT:
+
+### EXAMPLE APPROVED OUTPUT:
+DECISION: APPROVED
+The implementation matches the plan perfectly and handles all edge cases correctly.
+
+### EXAMPLE REJECTED OUTPUT:
+DECISION: REJECTED
+FEEDBACK:
+- The developer did not output the complete file inside the <file path="..."> tags.
+- Missing import statement for 'sys' on line 3.
 """
 
 class QAAgent(BaseAgent):
