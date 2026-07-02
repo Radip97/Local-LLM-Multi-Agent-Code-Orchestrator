@@ -17,6 +17,5 @@ env/
 .DS_Store
 Thumbs.db
 
-# Generated data
-test_target_project/access.log
-test_target_project/report.json
+# Test target workspace (local only)
+test_target_project/
