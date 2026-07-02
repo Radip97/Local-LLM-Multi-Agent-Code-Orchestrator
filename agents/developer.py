@@ -56,11 +56,22 @@ class DeveloperAgent(BaseAgent):
         """
         Executes the approved plan and generates code modifications.
         """
+        import re
+        # Truncate approved_plan if it is too long to save context
+        plan_summary = approved_plan
+        if len(approved_plan) > 1500:
+            # Try to extract the Proposed Changes section
+            match = re.search(r"(## Proposed Changes[\s\S]*)", approved_plan)
+            if match:
+                plan_summary = match.group(1)
+            else:
+                plan_summary = approved_plan[:1500] + "\n... (plan truncated for context) ..."
+
         user_prompt = f"""### User Coding Request:
 {user_request}
 
-### Approved Plan:
-{approved_plan}
+### Approved Plan Specification:
+{plan_summary}
 
 ### Current Codebase:
 {codebase_context}
