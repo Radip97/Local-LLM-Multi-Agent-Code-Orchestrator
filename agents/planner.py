@@ -20,6 +20,17 @@ Format your plan clearly using Markdown:
 ## Goal
 [Briefly describe what this plan accomplishes]
 
+## Sub-tasks Checklist
+Provide a numbered checklist of the individual, granular implementation steps needed to complete the task. Use the exact format:
+1. [ ] Description of step 1
+2. [ ] Description of step 2
+...
+
+Checklist Guidelines:
+- For complex projects (e.g. creating games, adding large components, multi-file codebases), you MUST break the work down into at least 4 to 6 granular steps.
+- Each step must focus on one specific part of the system (e.g. Step 1: Base window/layout skeleton, Step 2: Implement class A, Step 3: Implement physics/interactions, Step 4: Setup UI HUD/scoreboards).
+- NEVER bundle the entire implementation into a single step. Make each step small and incremental so the developer can write it reliably.
+
 ## Proposed Changes
 List every file that needs to change. Under each file, describe the exact logic additions or modifications.
 Format as:
@@ -42,6 +53,10 @@ User Coding Request: Create a basic calculator add function in calc.py.
 
 ## Goal
 Add a basic `add` utility function to the math calculator library.
+
+## Sub-tasks Checklist
+1. [ ] Create calc.py file if not exists
+2. [ ] Implement add function logic with docstrings in calc.py
 
 ## Proposed Changes
 ### NEW `calc.py`

@@ -10,13 +10,13 @@ API_KEY = os.environ.get("LOCAL_LLM_API_KEY", "lm-studio")
 
 # Model configuration
 # If set to None, the orchestrator will automatically list loaded models and map them
-PLANNER_MODEL = os.environ.get("PLANNER_MODEL", None)
-DEVELOPER_MODEL = os.environ.get("DEVELOPER_MODEL", None)
-QA_MODEL = os.environ.get("QA_MODEL", None)
+PLANNER_MODEL = os.environ.get("PLANNER_MODEL", "qwen/qwen3.5-9b")
+DEVELOPER_MODEL = os.environ.get("DEVELOPER_MODEL", "qwen/qwen3.5-9b")
+QA_MODEL = os.environ.get("QA_MODEL", "qwen/qwen3.5-9b")
 
 # Workflow loop configurations
 MAX_PLAN_ITERATIONS = 5
-MAX_CODE_ITERATIONS = 5
+MAX_CODE_ITERATIONS = 8
 
 # File-watching or ignores (for reading current codebase workspace)
 IGNORE_DIRS = {

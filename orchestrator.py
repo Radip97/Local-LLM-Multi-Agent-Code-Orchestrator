@@ -248,81 +248,94 @@ class Orchestrator:
         
         if not approved_plan:
             console.print("[red]QA rejected all plan attempts. Aborting workflow.[/red]")
-            return False
-
-        # ----------------------------------------------------
-        # Phase 2: Development & Coding Loop
+            return F        # ----------------------------------------------------
+        # Phase 2: Development & Coding Loop (Incremental Sub-tasks)
         # ----------------------------------------------------
         console.print("\n[bold yellow]=== PHASE 2: DEVELOPMENT ===[/bold yellow]")
         
-        approved_code = None
-        dev_history = ""
-        files_to_write = []
-        
-        for iteration in range(1, config.MAX_CODE_ITERATIONS + 1):
-            console.print(f"\n[bold]Development Iteration {iteration}/{config.MAX_CODE_ITERATIONS}[/bold]")
-            
-            # 1. Developer implements changes
-            with console.status("[cyan]Developer is implementing changes...[/cyan]"):
-                code_changes = self.developer.write_code(
-                    user_request=user_request,
-                    approved_plan=approved_plan,
-                    codebase_context=codebase_context,
-                    developer_history=dev_history
-                )
+        # Parse checklist items from approved plan
+        sub_tasks = re.findall(r'\d+\.\s*\[\s*\]\s*(.*)', approved_plan)
+        if not sub_tasks:
+            sub_tasks = [user_request]
+            console.print("[cyan]No sub-task checklist found in the approved plan. Treating the whole request as a single task.[/cyan]")
+        else:
+            console.print(f"[cyan]Parsed {len(sub_tasks)} sub-tasks from the plan checklist:[/cyan]")
+            for i, task in enumerate(sub_tasks, 1):
+                console.print(f"  {i}. {task}")
                 
-            # Render a summary of what the developer did without printing full massive file dumps if they are long
-            console.print(Panel(Markdown(code_changes), title=f"Developer Output (Iteration {iteration})"))
+        for step_idx, sub_task in enumerate(sub_tasks, 1):
+            console.print(Panel(f"[bold cyan]Executing Sub-task {step_idx}/{len(sub_tasks)}: {sub_task}[/bold cyan]", border_style="cyan"))
             
-            # 1.5 Local compiler syntax validation
-            files_to_validate = self.parse_file_blocks(code_changes)
-            syntax_errors = []
-            for rel_path, file_content in files_to_validate:
-                is_valid, error_msg = self.verify_syntax(file_content, rel_path)
-                if not is_valid:
-                    syntax_errors.append(error_msg)
+            approved_code = None
+            dev_history = ""
+            files_to_write = []
+            
+            sub_task_instruction = f"Current Step to Implement (Step {step_idx} of {len(sub_tasks)}): {sub_task}"
+            
+            for iteration in range(1, config.MAX_CODE_ITERATIONS + 1):
+                console.print(f"\n[bold]Development Iteration {iteration}/{config.MAX_CODE_ITERATIONS}[/bold]")
+                
+                # Fetch fresh codebase context containing all changes from previous steps
+                codebase_context = self.get_codebase_context(user_request)
+                
+                # 1. Developer implements changes for this step
+                with console.status(f"[cyan]Developer is implementing Step {step_idx}...[/cyan]"):
+                    code_changes = self.developer.write_code(
+                        user_request=f"{user_request}\n\n{sub_task_instruction}",
+                        approved_plan=approved_plan,
+                        codebase_context=codebase_context,
+                        developer_history=dev_history
+                    )
                     
-            if syntax_errors:
-                error_summary = "\n\n".join(syntax_errors)
-                console.print(Panel(f"[bold red]Local compiler check failed![/bold red]\n{error_summary}", title="Syntax Validation Error", border_style="red"))
-                dev_history += f"\n\n[Iteration {iteration} Syntax Error Traceback]\n{error_summary}"
-                continue
-            
-            # 2. QA reviews the generated code
-            with console.status("[cyan]QA is reviewing developer code...[/cyan]"):
-                qa_response = self.qa.review_code(
-                    user_request=user_request,
-                    approved_plan=approved_plan,
-                    code_changes=code_changes,
-                    codebase_context=codebase_context
-                )
+                console.print(Panel(Markdown(code_changes), title=f"Developer Output (Step {step_idx} - Iteration {iteration})"))
                 
-            is_approved, feedback = self.parse_qa_decision(qa_response)
-            console.print(Panel(qa_response, title=f"QA Code Review (Iteration {iteration})", border_style="green" if is_approved else "red"))
-            
-            if is_approved:
-                # Validate if developer actually output valid file blocks
-                files_to_write = self.parse_file_blocks(code_changes)
-                if not files_to_write:
-                    console.print("[red]QA approved but no valid file blocks (<file path='...'>) were found in the output. Rejecting locally.[/red]")
-                    dev_history += f"\n\n[Iteration {iteration} System Notice]\nNo file blocks parsed. You must output files wrapped in <file path='...'>...</file> tags containing the complete updated file content."
+                # 1.5 Local compiler syntax validation
+                files_to_validate = self.parse_file_blocks(code_changes)
+                syntax_errors = []
+                for rel_path, file_content in files_to_validate:
+                    is_valid, error_msg = self.verify_syntax(file_content, rel_path)
+                    if not is_valid:
+                        syntax_errors.append(error_msg)
+                        
+                if syntax_errors:
+                    error_summary = "\n\n".join(syntax_errors)
+                    console.print(Panel(f"[bold red]Local compiler check failed![/bold red]\n{error_summary}", title="Syntax Validation Error", border_style="red"))
+                    dev_history += f"\n\n[Iteration {iteration} Syntax Error Traceback]\n{error_summary}"
                     continue
-                    
-                approved_code = code_changes
-                console.print("[bold green]✓ Code changes approved by QA![/bold green]")
-                break
-            else:
-                console.print(f"[yellow]✗ Code changes rejected. Feeding feedback back to developer.[/yellow]")
-                dev_history += f"\n\n[Iteration {iteration} QA Feedback]\n{feedback}"
                 
-        if not approved_code:
-            console.print("[red]QA rejected all developer code attempts. Aborting workflow.[/red]")
-            return False
+                # 2. QA reviews the generated code for this step
+                with console.status(f"[cyan]QA is reviewing Developer code for Step {step_idx}...[/cyan]"):
+                    qa_response = self.qa.review_code(
+                        user_request=f"{user_request}\n\n{sub_task_instruction}",
+                        approved_plan=approved_plan,
+                        code_changes=code_changes,
+                        codebase_context=codebase_context
+                    )
+                    
+                is_approved, feedback = self.parse_qa_decision(qa_response)
+                console.print(Panel(qa_response, title=f"QA Code Review (Step {step_idx} - Iteration {iteration})", border_style="green" if is_approved else "red"))
+                
+                if is_approved:
+                    files_to_write = self.parse_file_blocks(code_changes)
+                    if not files_to_write:
+                        console.print("[red]QA approved but no valid file blocks (<file path='...'>) were found in the output. Rejecting locally.[/red]")
+                        dev_history += f"\n\n[Iteration {iteration} System Notice]\nNo file blocks parsed. You must output files wrapped in <file path='...'>...</file> tags containing the complete updated file content."
+                        continue
+                        
+                    approved_code = code_changes
+                    console.print(f"[bold green]✓ Step {step_idx} approved by QA![/bold green]")
+                    break
+                else:
+                    console.print(f"[yellow]✗ Code changes rejected. Feeding feedback back to developer.[/yellow]")
+                    dev_history += f"\n\n[Iteration {iteration} QA Feedback]\n{feedback}"
+                    
+            if not approved_code:
+                console.print(f"[red]QA rejected all developer attempts for Step {step_idx}. Aborting workflow.[/red]")
+                return False
+                
+            # Apply changes for this step to disk so subsequent steps read them
+            console.print(f"\n[bold yellow]=== APPLYING CHANGES FOR STEP {step_idx} ===[/bold yellow]")
+            self.write_files_to_disk(files_to_write)
 
-        # ----------------------------------------------------
-        # Phase 3: Applying Code Changes
-        # ----------------------------------------------------
-        console.print("\n[bold yellow]=== PHASE 3: APPLYING CHANGES ===[/bold yellow]")
-        self.write_files_to_disk(files_to_write)
         console.print("[bold green]✓ Workflow completed successfully![/bold green]")
         return True

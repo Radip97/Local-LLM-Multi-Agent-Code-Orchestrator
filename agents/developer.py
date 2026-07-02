@@ -21,6 +21,8 @@ Guidelines:
 3. Keep other unrelated code in the files intact. Do not delete existing functionality unless instructed by the plan.
 4. You can write multiple `<file path="...">` blocks if the plan requires changes to multiple files.
 5. Provide a brief explanation of your changes *outside* the `<file>` blocks.
+6. CRITICAL: Do NOT write markdown code block backticks (e.g. ```python or ```) inside the `<file>` tags. The contents of the `<file>` tag MUST be pure, raw code that can be compiled directly.
+7. Ensure all comment lines are strictly prefixed with `#`. Do not allow comment text to wrap to a new line without a `#` symbol, which crashes compiler checks.
 
 ---
 
