@@ -14,8 +14,9 @@ from agents.qa import QAAgent
 console = Console()
 
 class Orchestrator:
-    def __init__(self, target_dir: str):
+    def __init__(self, target_dir: str, files: list[str] = None):
         self.target_dir = os.path.abspath(target_dir)
+        self.files = files
         if not os.path.exists(self.target_dir):
             os.makedirs(self.target_dir)
             console.print(f"[yellow]Created target directory: {self.target_dir}[/yellow]")
@@ -24,34 +25,76 @@ class Orchestrator:
         self.developer = DeveloperAgent()
         self.qa = QAAgent()
 
-    def get_codebase_context(self) -> str:
+    def get_codebase_context(self, user_request: str = "") -> str:
         """
         Walks the target directory, reads files, and formats them into a single context string.
+        Selects files based on explicit list or prompt keywords if the repository is large.
         """
         context_parts = []
-        for root, dirs, files in os.walk(self.target_dir):
-            # Prune directories in place
-            dirs[:] = [d for d in dirs if d not in config.IGNORE_DIRS]
+        
+        # 1. If files are explicitly specified, load ONLY those files
+        if self.files:
+            console.print(f"[cyan]Loading explicit context files: {self.files}[/cyan]")
+            for rel_path in self.files:
+                full_path = os.path.join(self.target_dir, rel_path)
+                if not os.path.exists(full_path):
+                    console.print(f"[yellow]Warning: Specified context file '{rel_path}' does not exist on disk.[/yellow]")
+                    continue
+                try:
+                    with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    context_parts.append(f"--- File: {rel_path} ---\n{content}\n----------------------")
+                except Exception as e:
+                    console.print(f"[red]Warning: Could not read {rel_path} ({e})[/red]")
             
+            if not context_parts:
+                return "(No valid files loaded from the explicit list.)"
+            return "\n\n".join(context_parts)
+            
+        # 2. Walk directory to find all candidate files
+        candidate_files = []
+        for root, dirs, files in os.walk(self.target_dir):
+            dirs[:] = [d for d in dirs if d not in config.IGNORE_DIRS]
             for file in files:
                 _, ext = os.path.splitext(file)
                 if ext.lower() in config.IGNORE_EXTENSIONS:
                     continue
-                    
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, self.target_dir)
-                
-                try:
-                    with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                    
-                    context_parts.append(f"--- File: {rel_path} ---\n{content}\n----------------------")
-                except Exception as e:
-                    console.print(f"[red]Warning: Could not read {rel_path} ({e})[/red]")
-                    
-        if not context_parts:
+                candidate_files.append(rel_path)
+
+        if not candidate_files:
             return "(Empty codebase. No files present yet.)"
+
+        # 3. Dynamic RAG-Lite: Filter files if codebase is large
+        selected_files = candidate_files
+        if len(candidate_files) > 6 and user_request:
+            prompt_words = set(re.findall(r'\w+', user_request.lower()))
+            prompt_words = {w for w in prompt_words if len(w) > 2}
             
+            matched_files = []
+            for rel_path in candidate_files:
+                path_parts = set(re.findall(r'\w+', rel_path.lower()))
+                if prompt_words.intersection(path_parts):
+                    matched_files.append(rel_path)
+            
+            if matched_files:
+                selected_files = matched_files
+                console.print(f"[cyan]RAG-Lite: Large codebase ({len(candidate_files)} files). Selected {len(selected_files)} relevant files: {selected_files}[/cyan]")
+            else:
+                selected_files = candidate_files[:6]
+                console.print(f"[yellow]RAG-Lite: Large codebase. Loading first {len(selected_files)} files to fit context limit: {selected_files}[/yellow]")
+
+        # 4. Load the selected files
+        for rel_path in selected_files:
+            full_path = os.path.join(self.target_dir, rel_path)
+            try:
+                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                context_parts.append(f"--- File: {rel_path} ---\n{content}\n----------------------")
+            except Exception as e:
+                console.print(f"[red]Warning: Could not read {rel_path} ({e})[/red]")
+
         return "\n\n".join(context_parts)
 
     def parse_qa_decision(self, response: str) -> tuple[bool, str]:
@@ -141,7 +184,7 @@ class Orchestrator:
         # ----------------------------------------------------
         console.print("\n[bold yellow]=== PHASE 1: PLANNING ===[/bold yellow]")
         
-        codebase_context = self.get_codebase_context()
+        codebase_context = self.get_codebase_context(user_request)
         approved_plan = None
         plan_history = []
         
@@ -171,7 +214,7 @@ class Orchestrator:
                 # Combine user request with planning history for next iteration
                 user_request_with_history = f"{user_request}\n\nPlanning History:\n" + "\n\n".join(plan_history)
                 # We update the codebase context just in case, but it remains the same
-                codebase_context = self.get_codebase_context()
+                codebase_context = self.get_codebase_context(user_request)
         
         if not approved_plan:
             console.print("[red]QA rejected all plan attempts. Aborting workflow.[/red]")

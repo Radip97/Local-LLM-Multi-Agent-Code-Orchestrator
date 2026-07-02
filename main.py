@@ -21,11 +21,20 @@ def main():
         type=str, 
         help="The coding task description. If not provided, you will be prompted."
     )
+    parser.add_argument(
+        "--files",
+        type=str,
+        help="Optional comma-separated list of specific files to load into context (e.g. 'calc.py,gui_calc.py')"
+    )
     
     args = parser.parse_args()
     
     target_dir = args.target_dir
     prompt = args.prompt
+    
+    files_list = None
+    if args.files:
+        files_list = [f.strip() for f in args.files.split(",") if f.strip()]
     
     if not prompt:
         console.print("[bold cyan]Welcome to the Local LLM Multi-Agent Coding Workflow![/bold cyan]")
@@ -40,7 +49,7 @@ def main():
         console.print("[red]Error: Prompt cannot be empty.[/red]")
         sys.exit(1)
         
-    orchestrator = Orchestrator(target_dir)
+    orchestrator = Orchestrator(target_dir, files=files_list)
     try:
         success = orchestrator.run(prompt)
         if success:
