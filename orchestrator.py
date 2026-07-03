@@ -460,18 +460,38 @@ class Orchestrator:
                     
                 console.print(Panel(Markdown(code_changes), title=f"Developer Output (Step {step_idx} - Iteration {iteration})"))
                 
-                # 1.5 Local compiler syntax validation
+                # 1.5 Local compiler syntax validation (accept working, reject broken)
                 files_to_validate = self.parse_file_blocks(code_changes)
-                syntax_errors = []
-                for rel_path, file_content in files_to_validate:
-                    is_valid, error_msg = self.verify_syntax(file_content, rel_path)
-                    if not is_valid:
-                        syntax_errors.append(error_msg)
-                        
-                if syntax_errors:
-                    error_summary = "\n\n".join(syntax_errors)
-                    console.print(Panel(f"[bold red]Local compiler check failed![/bold red]\n{error_summary}", title="Syntax Validation Error", border_style="red"))
-                    dev_history += f"\n\n[Iteration {iteration} Syntax Error Traceback]\n{error_summary}"
+                if not files_to_validate:
+                    console.print("[red]No valid file blocks (<file path='...'>) were found in the output. Rejecting locally.[/red]")
+                    dev_history += f"\n\n[Iteration {iteration} System Notice]\nNo file blocks parsed. You must output files wrapped in <file path='...'>...</file> tags containing the Search/Replace blocks."
+                    continue
+
+                working_changes = []
+                broken_changes = []
+                
+                for rel_path, block_content in files_to_validate:
+                    full_path = os.path.join(self.target_dir, rel_path)
+                    try:
+                        # Try applying the search/replace block to get the updated file content
+                        updated_content = self.apply_search_replace(full_path, block_content)
+                        is_valid, error_msg = self.verify_syntax(updated_content, rel_path)
+                        if is_valid:
+                            working_changes.append((rel_path, updated_content))
+                        else:
+                            broken_changes.append((rel_path, f"Syntax Error: {error_msg}"))
+                    except Exception as e:
+                        broken_changes.append((rel_path, f"Search/Replace Error: {e}"))
+                
+                # Write working changes to disk immediately
+                if working_changes:
+                    self.write_files_to_disk(working_changes)
+                    
+                # If there are broken changes, reject and feed back to developer
+                if broken_changes:
+                    error_summary = "\n".join([f"- File '{path}': {err}" for path, err in broken_changes])
+                    console.print(Panel(f"[bold red]Some changes had errors and were rejected:[/bold red]\n{error_summary}", title="Syntax/S&R Errors", border_style="red"))
+                    dev_history += f"\n\n[Iteration {iteration} Feedback]\nWe successfully accepted and applied the working changes. However, the following changes failed verification and were rejected. Please output corrected Search/Replace blocks for them:\n{error_summary}"
                     continue
                 
                 # 2. QA reviews the generated code for this step
@@ -492,27 +512,17 @@ class Orchestrator:
                     is_approved = True
                 
                 if is_approved:
-                    files_to_write = self.parse_file_blocks(code_changes)
-                    if not files_to_write:
-                        console.print("[red]QA approved but no valid file blocks (<file path='...'>) were found in the output. Rejecting locally.[/red]")
-                        dev_history += f"\n\n[Iteration {iteration} System Notice]\nNo file blocks parsed. You must output files wrapped in <file path='...'>...</file> tags containing the complete updated file content."
-                        continue
-                        
                     approved_code = code_changes
                     console.print(f"[bold green]✓ Step {step_idx} approved by QA![/bold green]")
                     break
                 else:
-                    console.print(f"[yellow]✗ Code changes rejected. Feeding feedback back to developer.[/yellow]")
+                    console.print(f"[yellow]✗ Code changes rejected by QA. Feeding feedback back to developer.[/yellow]")
                     dev_history += f"\n\n[Iteration {iteration} QA Feedback]\n{feedback}"
                     
             if not approved_code:
                 console.print(f"[red]QA rejected all developer attempts for Step {step_idx}. Aborting workflow.[/red]")
                 return False
                 
-            # Apply changes for this step to disk so subsequent steps read them
-            console.print(f"\n[bold yellow]=== APPLYING CHANGES FOR STEP {step_idx} ===[/bold yellow]")
-            self.write_files_to_disk(files_to_write)
-            
             # Save checkpoint state incremented for the next step
             self.save_state(approved_plan, sub_tasks, step_idx + 1)
 
