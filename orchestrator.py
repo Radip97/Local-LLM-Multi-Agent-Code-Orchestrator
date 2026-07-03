@@ -678,10 +678,7 @@ class Orchestrator:
                 is_approved, feedback = self.parse_qa_decision(qa_response)
                 console.print(Panel(qa_response, title=f"QA Code Review (Step {step_idx} - Iteration {iteration})", border_style="green" if is_approved else "red"))
                 
-                # QA deadlock override: if local syntax check passed and we are on iteration >= 3, auto-approve
-                if not is_approved and iteration >= 3:
-                    console.print("[yellow]⚠️ QA has rejected this iteration, but local compiler syntax check passed. Auto-approving to prevent loop deadlock.[/yellow]")
-                    is_approved = True
+
                 
                 if is_approved:
                     approved_code = code_changes

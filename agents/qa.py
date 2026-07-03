@@ -13,8 +13,19 @@ OR
 
 DECISION: REJECTED
 FEEDBACK:
-- [List specific issues, bugs, or missing requirements]
-- [Explain what needs to be fixed]
+- File: [relative/path/to/file]
+  - Issue: [Describe the exact bug, logical error, or syntax error]
+  - Problematic Code Context:
+    ```[language]
+    [show the exact problematic code snippet here]
+    ```
+  - Actionable Fix:
+    ```[language]
+    [show the exact corrected code snippet the developer should use]
+    ```
+- File: [another/path]
+  - Issue: [Describe the issue]
+  - Actionable Fix: [Describe or show the fix]
 
 Review Guidelines:
 1. Focus strictly on correctness, completeness, and execution. Check for compile errors, crashes, missing core requirements, or broken imports.
@@ -23,6 +34,7 @@ Review Guidelines:
 4. If the developer implements MORE functionality than requested in the current step (e.g., implementing JavaScript during a CSS step, or building the full feature early), you MUST APPROVE it as long as it is functional and correct. Do not reject code for being ahead of schedule.
 5. Do NOT reject code for using common client-side shortcuts like `eval()` for math calculation, unless they cause actual syntax errors or functional bugs.
 6. If the code is working and runnable, approve it. Let further refinements happen in later stages.
+7. ACTIONABLE FEEDBACK REQUIREMENT: When rejecting code, you MUST be extremely specific. Do NOT give vague descriptions. Provide the exact code block that is broken and show the exact code snippet that will fix it. The developer is guided directly by your feedback.
 
 Logical & Runtime Checklist:
 Please trace the execution flow of the code and verify:
