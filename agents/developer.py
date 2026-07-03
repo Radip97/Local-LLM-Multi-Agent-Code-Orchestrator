@@ -117,6 +117,24 @@ class DeveloperAgent(BaseAgent):
 
 Please review the feedback above and rewrite/correct the files accordingly, preserving the XML tags.
 """
+        
+        # Explicit format reminder at the very end of the prompt where LLM attention is highest
+        user_prompt += """
+### IMPORTANT FORMAT REMINDER:
+You MUST wrap all created or modified files inside XML tags like this:
+<file path="relative/path/to/file">
+...
+</file>
+
+If modifying an existing file, use SEARCH/REPLACE blocks inside the tags:
+<<<<<<< SEARCH
+[exact lines to replace]
+=======
+[replacement lines]
+>>>>>>> REPLACE
+
+Do NOT output plain code or code blocks (e.g. ```html, ```css) unless they are wrapped in the `<file>` XML tags.
+"""
         return self.call_llm_with_images(
             system_prompt=DEVELOPER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
