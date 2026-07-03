@@ -1,7 +1,9 @@
 import sys
 import os
 import re
-from openai import OpenAI
+import json
+import urllib.request
+import urllib.error
 import config
 
 def apply_search_replace(file_path: str, block_content: str) -> str:
@@ -49,8 +51,6 @@ def main():
     with open(file_path, 'r', encoding='utf-8') as f:
         file_content = f.read()
         
-    client = OpenAI(base_url=config.API_BASE_URL, api_key=config.API_KEY)
-    
     system_prompt = """You are a senior software developer. Your task is to update an existing codebase file based on the user's prompt.
 You MUST output your edits using SEARCH/REPLACE blocks.
 
@@ -74,19 +74,36 @@ Instructions:
 """
 
     print(f"Calling local LLM ({config.DEVELOPER_MODEL}) to edit {file_path}...")
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {config.API_KEY}"
+    }
+    
+    payload = {
+        "model": config.DEVELOPER_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.2
+    }
+    
+    url = f"{config.API_BASE_URL.rstrip('/')}/chat/completions"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode('utf-8'),
+        headers=headers,
+        method='POST'
+    )
+    
     try:
-        response = client.chat.completions.create(
-            model=config.DEVELOPER_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2
-        )
-        
-        output = response.choices[0].message.content
+        with urllib.request.urlopen(req) as response:
+            res_data = response.read().decode('utf-8')
+            result_json = json.loads(res_data)
+            output = result_json["choices"][0]["message"]["content"]
+            
         print("Response received. Applying changes...")
-        
         updated_content = apply_search_replace(file_path, output)
         
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -96,6 +113,8 @@ Instructions:
         
     except Exception as e:
         print(f"Error executing change: {e}")
+        if hasattr(e, 'read'):
+            print(e.read().decode('utf-8'))
         sys.exit(1)
 
 if __name__ == "__main__":
