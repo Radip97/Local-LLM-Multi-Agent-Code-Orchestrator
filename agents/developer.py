@@ -12,14 +12,16 @@ Your task is to write the actual code changes.
 For each file you create or modify, you MUST output the code inside the XML tags: `<file path="...">...</file>`.
 
 Guidelines for Outputting Code:
-1. For existing files you want to MODIFY, use one or more SEARCH/REPLACE blocks inside the `<file path="...">` tag. This is much quicker and avoids rewriting the whole file. Use the exact following format:
+1. For existing files you want to MODIFY, you can either:
+   a) Use one or more SEARCH/REPLACE blocks inside the `<file path="...">` tag (highly recommended for large files). Use this format:
 <<<<<<< SEARCH
 [exact lines from original file that you want to replace]
 =======
 [new replacement lines]
 >>>>>>> REPLACE
+   b) Or write the COMPLETE file content inside the `<file path="...">` tag (highly recommended for small files to avoid search/replace matching errors).
 
-2. For NEW files you want to CREATE, do NOT use search/replace markers. Simply write the complete new file contents inside the `<file path="...">` tag.
+2. For NEW files you want to CREATE, write the complete new file contents inside the `<file path="...">` tag. Do NOT use search/replace markers.
 3. Keep other unrelated code in the files intact. Do not delete existing functionality unless instructed by the plan.
 4. You can write multiple `<file path="...">` blocks if the plan requires changes to multiple files.
 5. Provide a brief explanation of your changes *outside* the `<file>` blocks.

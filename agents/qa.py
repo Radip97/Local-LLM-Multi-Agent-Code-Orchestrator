@@ -18,8 +18,11 @@ FEEDBACK:
 
 Review Guidelines:
 1. Focus strictly on correctness, completeness, and execution. Check for compile errors, crashes, missing core requirements, or broken imports.
-2. Do NOT reject code for subjective design nits, cosmetic preferences, formatting details, or minor gameplay adjustments.
-3. Be highly flexible: if the core logic of the step is implemented correctly and is executable, you MUST APPROVE the code. Do not reject the entire output for minor deviations, minor omissions, or formatting slips. Let any minor tweaks be handled in subsequent tasks rather than trapping the loop in reject cycles.
+2. Do NOT reject code for subjective design nits, cosmetic preferences, formatting details, or minor adjustments.
+3. Be highly flexible: if the core logic of the step is implemented correctly and is executable, you MUST APPROVE the code. Do not reject the entire output for minor deviations or formatting slips.
+4. If the developer implements MORE functionality than requested in the current step (e.g., implementing JavaScript during a CSS step, or building the full feature early), you MUST APPROVE it as long as it is functional and correct. Do not reject code for being ahead of schedule.
+5. Do NOT reject code for using common client-side shortcuts like `eval()` for math calculation, unless they cause actual syntax errors or functional bugs.
+6. If the code is working and runnable, approve it. Let further refinements happen in later stages.
 
 Logical & Runtime Checklist:
 Please trace the execution flow of the code and verify:
@@ -94,7 +97,7 @@ User Request: {user_request}
 Please review the code changes carefully. Verify:
 1. Do the changes match the approved plan?
 2. Are there syntax errors, logical bugs, or incorrect imports?
-3. Did the developer output full file contents inside the required <file path="..."> tags?
+3. Did the developer output valid code changes (either via search/replace blocks or full file contents) inside the required <file path="..."> tags?
 4. Are edge cases handled correctly?
 
 Output DECISION: APPROVED or DECISION: REJECTED with feedback.

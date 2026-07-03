@@ -246,6 +246,12 @@ class Orchestrator:
                 if search_norm in content_norm:
                     content = content_norm.replace(search_norm, replace, 1)
                 else:
+                    # Robust fallback: if the search block is very long (covers >70% of the file),
+                    # assume the model is attempting a full rewrite and use the replacement content directly.
+                    ratio = len(search) / max(1, len(content))
+                    if ratio > 0.7 or len(content.strip()) < 50:
+                        console.print(f"[yellow]⚠️ Search block match failed, but it covers {ratio:.1%} of the file. Falling back to full content replacement.[/yellow]")
+                        return replace
                     raise ValueError(f"Could not find SEARCH block in file {os.path.basename(file_path)}:\n{search}")
                     
         return content
@@ -293,6 +299,67 @@ class Orchestrator:
             return False, error_msg
         except Exception as e:
             return False, f"Compilation failed: {e}"
+
+    def get_project_spec(self) -> str:
+        """
+        Reads the living project specification document from disk.
+        """
+        spec_path = os.path.join(self.target_dir, "project_spec.md")
+        if os.path.exists(spec_path):
+            try:
+                with open(spec_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                console.print(f"[red]Warning: Could not read project_spec.md ({e})[/red]")
+        return ""
+
+    def update_project_spec(self, step_idx: int, step_instruction: str, code_changes: str):
+        """
+        Uses the local LLM to update the living project specification document after each step.
+        """
+        spec_path = os.path.join(self.target_dir, "project_spec.md")
+        current_spec = self.get_project_spec()
+        
+        system_prompt = (
+            "You are a Technical Specification Writer. Your job is to maintain a single, highly concise 'project_spec.md' document.\n"
+            "This document registers: \n"
+            "1. The files created in the project and their high-level purpose.\n"
+            "2. The exact public interfaces (classes, constructor arguments, public methods, and properties) introduced or modified.\n"
+            "3. What features or files are pending next.\n"
+            "Keep the description extremely brief and token-efficient. Do not write full code. Only write signatures and public properties.\n"
+            "Output the COMPLETE updated 'project_spec.md' content wrapped in <file path=\"project_spec.md\">...</file> tags. Do not use SEARCH/REPLACE format for this update."
+        )
+        
+        user_prompt = (
+            f"### CURRENT PROJECT SPECIFICATION:\n{current_spec or 'No spec created yet.'}\n\n"
+            f"### STEP {step_idx} INSTRUCTION COMPLETED:\n{step_instruction}\n\n"
+            f"### CODE CHANGES APPLIED IN THIS STEP:\n{code_changes}\n\n"
+            "Please output the updated 'project_spec.md' incorporating the new classes, methods, and file structures introduced. Maintain the existing specs and append the new ones."
+        )
+        
+        try:
+            # We call the model to update the spec
+            response = self.developer.client.chat.completions.create(
+                model=self.developer.get_model(),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.2
+            )
+            spec_output = response.choices[0].message.content
+            parsed = self.parse_file_blocks(spec_output)
+            if parsed:
+                _, content = parsed[0]
+                # Ensure the parent directory exists
+                parent_dir = os.path.dirname(spec_path)
+                if not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir)
+                with open(spec_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                console.print(f"[bold green]✓ Updated project_spec.md with Step {step_idx} interfaces![/bold green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Failed to update project_spec.md: {e}[/yellow]")
 
     def extract_file_plans(self, approved_plan: str, sub_task_desc: str) -> str:
         """
@@ -449,6 +516,11 @@ class Orchestrator:
                 # Fetch step-relevant codebase context (RAG-Lite filtered by sub_task)
                 codebase_context = self.get_codebase_context(sub_task)
                 
+                # Prepend the living technical specification registry if it exists
+                spec_content = self.get_project_spec()
+                if spec_content:
+                    codebase_context = f"### PROJECT SPECIFICATION & INTERFACE REGISTRY (Source of Truth):\n{spec_content}\n\n" + codebase_context
+                
                 # 1. Developer implements changes for this step
                 with console.status(f"[cyan]Developer is implementing Step {step_idx}...[/cyan]"):
                     code_changes = self.developer.write_code(
@@ -523,6 +595,9 @@ class Orchestrator:
                 console.print(f"[red]QA rejected all developer attempts for Step {step_idx}. Aborting workflow.[/red]")
                 return False
                 
+            # Update the living project specification registry
+            self.update_project_spec(step_idx, sub_task_instruction, approved_code)
+            
             # Save checkpoint state incremented for the next step
             self.save_state(approved_plan, sub_tasks, step_idx + 1)
 
