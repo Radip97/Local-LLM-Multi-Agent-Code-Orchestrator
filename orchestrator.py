@@ -101,7 +101,7 @@ class Orchestrator:
 
         # 3. Dynamic RAG-Lite: Filter files if codebase is large
         selected_files = candidate_files
-        if len(candidate_files) > 6 and user_request:
+        if len(candidate_files) > 2 and user_request:
             prompt_words = set(re.findall(r'\w+', user_request.lower()))
             prompt_words = {w for w in prompt_words if len(w) > 2}
             
@@ -446,8 +446,8 @@ class Orchestrator:
             for iteration in range(1, config.MAX_CODE_ITERATIONS + 1):
                 console.print(f"\n[bold]Development Iteration {iteration}/{config.MAX_CODE_ITERATIONS}[/bold]")
                 
-                # Fetch fresh codebase context containing all changes from previous steps
-                codebase_context = self.get_codebase_context(user_request)
+                # Fetch step-relevant codebase context (RAG-Lite filtered by sub_task)
+                codebase_context = self.get_codebase_context(sub_task)
                 
                 # 1. Developer implements changes for this step
                 with console.status(f"[cyan]Developer is implementing Step {step_idx}...[/cyan]"):
