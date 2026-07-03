@@ -212,9 +212,47 @@ class Orchestrator:
             
         return []
 
+    def apply_search_replace(self, file_path: str, block_content: str) -> str:
+        """
+        Applies search-and-replace block replacements to an existing file's content.
+        If the file doesn't exist, treats it as a full file write.
+        """
+        if not os.path.exists(file_path):
+            # Clean search/replace markup if present
+            clean = block_content
+            clean = re.sub(r'<<<<<<< SEARCH\s*\n', '', clean)
+            clean = re.sub(r'\n=======\s*\n', '', clean)
+            clean = re.sub(r'\n>>>>>>> REPLACE', '', clean)
+            return clean
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Regex to match search/replace blocks
+        pattern = r'<<<<<<< SEARCH\s*\n([\s\S]*?)\n=======\s*\n([\s\S]*?)\n>>>>>>> REPLACE'
+        matches = re.findall(pattern, block_content)
+        
+        if not matches:
+            return block_content
+
+        for search, replace in matches:
+            # Literal replacement
+            if search in content:
+                content = content.replace(search, replace, 1)
+            else:
+                # Normalize line endings and try again
+                search_norm = search.replace('\r\n', '\n')
+                content_norm = content.replace('\r\n', '\n')
+                if search_norm in content_norm:
+                    content = content_norm.replace(search_norm, replace, 1)
+                else:
+                    raise ValueError(f"Could not find SEARCH block in file {os.path.basename(file_path)}:\n{search}")
+                    
+        return content
+
     def write_files_to_disk(self, files: list[tuple[str, str]]):
         """
-        Writes parsed file blocks to the target directory.
+        Writes parsed file blocks to the target directory. Supports search/replace blocks.
         """
         for rel_path, file_content in files:
             # Ensure path is safe/relative
@@ -227,6 +265,13 @@ class Orchestrator:
             parent_dir = os.path.dirname(full_path)
             if not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)
+                
+            if "<<<<<<< SEARCH" in file_content:
+                try:
+                    file_content = self.apply_search_replace(full_path, file_content)
+                except Exception as e:
+                    console.print(f"[red]Error applying Search/Replace to {rel_path}: {e}[/red]")
+                    raise e
                 
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(file_content)

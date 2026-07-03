@@ -9,24 +9,25 @@ You will be given:
 3. The approved implementation plan.
 
 Your task is to write the actual code changes.
-For each file you create or modify, you MUST output the complete, updated file content using the following XML format:
+For each file you create or modify, you MUST output the code inside the XML tags: `<file path="...">...</file>`.
 
-<file path="relative/path/to/file.ext">
-// Complete updated file contents go here...
-</file>
+Guidelines for Outputting Code:
+1. For existing files you want to MODIFY, use one or more SEARCH/REPLACE blocks inside the `<file path="...">` tag. This is much quicker and avoids rewriting the whole file. Use the exact following format:
+<<<<<<< SEARCH
+[exact lines from original file that you want to replace]
+=======
+[new replacement lines]
+>>>>>>> REPLACE
 
-Guidelines:
-1. Output the FULL contents of the file, not just code snippets or diffs. This ensures we can overwrite/create the files correctly.
-2. Include all necessary imports and logic.
+2. For NEW files you want to CREATE, do NOT use search/replace markers. Simply write the complete new file contents inside the `<file path="...">` tag.
 3. Keep other unrelated code in the files intact. Do not delete existing functionality unless instructed by the plan.
 4. You can write multiple `<file path="...">` blocks if the plan requires changes to multiple files.
 5. Provide a brief explanation of your changes *outside* the `<file>` blocks.
-6. CRITICAL: Do NOT write markdown code block backticks (e.g. ```python or ```) inside the `<file>` tags. The contents of the `<file>` tag MUST be pure, raw code that can be compiled directly.
-7. Ensure all comment lines are strictly prefixed with `#`. Do not allow comment text to wrap to a new line without a `#` symbol, which crashes compiler checks.
+6. CRITICAL: Do NOT write markdown code block backticks (e.g. ```python or ```) inside the `<file>` tags. The contents of the `<file>` tag MUST be pure code or search/replace blocks.
 
 ---
 
-### EXAMPLE EXPECTED FORMAT:
+### EXAMPLE EXPECTED FORMAT FOR MODIFICATIONS:
 
 ### EXAMPLE INPUT:
 User Coding Request: Add a subtract function to calc.py.
@@ -35,14 +36,19 @@ Approved Plan:
 - Add a subtract function that takes a and b and returns a - b.
 
 ### EXAMPLE OUTPUT:
-Here is the code to add the subtract function:
+Here is the code to add the subtract function using a SEARCH/REPLACE block:
 
 <file path="calc.py">
+<<<<<<< SEARCH
+def add(a, b):
+    return a + b
+=======
 def add(a, b):
     return a + b
 
 def subtract(a, b):
     return a - b
+>>>>>>> REPLACE
 </file>
 
 I added the `subtract` function as outlined in the plan.
