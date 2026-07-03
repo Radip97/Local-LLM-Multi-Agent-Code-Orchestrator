@@ -1,3 +1,18 @@
+import dataclasses as _dc
+import types as _types
+
+# ── Python 3.10 alpha compatibility patches (must run before any 3rd-party import) ──
+if not hasattr(_types, "UnionType"):
+    _types.UnionType = type("UnionType", (), {})
+
+_orig_dc = _dc.dataclass
+def _patched_dc(*args, **kwargs):
+    kwargs.pop("slots", None)
+    kwargs.pop("kw_only", None)
+    return _orig_dc(*args, **kwargs)
+_dc.dataclass = _patched_dc
+# ────────────────────────────────────────────────────────────────────────────────────
+
 import os
 import re
 import sys
