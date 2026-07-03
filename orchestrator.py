@@ -124,10 +124,42 @@ class Orchestrator:
     def parse_file_blocks(self, content: str) -> list[tuple[str, str]]:
         """
         Parses xml file blocks from the developer agent's response.
-        Returns a list of (filepath, content) tuples.
+        Returns a list of (filepath, content) tuples. Supports markdown block fallback.
         """
-        pattern = r'<file\s+path=["\']([^"\']+)["\']>\s*([\s\S]*?)\s*</file>'
-        return re.findall(pattern, content)
+        xml_pattern = r'<file\s+path=["\']([^"\']+)["\']>\s*([\s\S]*?)\s*</file>'
+        blocks = re.findall(xml_pattern, content)
+        if blocks:
+            return blocks
+            
+        # Fallback: Parse markdown code blocks and map them to filenames
+        markdown_blocks = re.findall(r'```(?:\w+)?\n([\s\S]*?)\n```', content)
+        if not markdown_blocks:
+            return []
+            
+        # Try to find filenames in headers near the blocks
+        filenames = re.findall(r'(?:^|\n)(?:#+\s+|\*\*|File:\s*)([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))', content, re.IGNORECASE)
+        
+        seen = set()
+        clean_filenames = []
+        for f in filenames:
+            name = os.path.basename(f)
+            if name not in seen:
+                seen.add(name)
+                clean_filenames.append(f)
+                
+        if len(clean_filenames) == len(markdown_blocks):
+            return list(zip(clean_filenames, markdown_blocks))
+            
+        all_mentioned_files = re.findall(r'\b([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))\b', content, re.IGNORECASE)
+        unique_mentioned = []
+        for f in all_mentioned_files:
+            if f not in unique_mentioned:
+                unique_mentioned.append(f)
+                
+        if len(markdown_blocks) == 1 and len(unique_mentioned) >= 1:
+            return [(unique_mentioned[0], markdown_blocks[0])]
+            
+        return []
 
     def write_files_to_disk(self, files: list[tuple[str, str]]):
         """
