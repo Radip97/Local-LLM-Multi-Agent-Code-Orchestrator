@@ -25,6 +25,39 @@ class Orchestrator:
         self.developer = DeveloperAgent()
         self.qa = QAAgent()
 
+    def load_state(self) -> dict | None:
+        state_path = os.path.join(self.target_dir, ".workflow_state.json")
+        if os.path.exists(state_path):
+            try:
+                import json
+                with open(state_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not load workflow state: {e}[/yellow]")
+        return None
+
+    def save_state(self, plan: str, sub_tasks: list[str], current_step_index: int):
+        state_path = os.path.join(self.target_dir, ".workflow_state.json")
+        try:
+            import json
+            state = {
+                "plan": plan,
+                "sub_tasks": sub_tasks,
+                "current_step_index": current_step_index
+            }
+            with open(state_path, 'w', encoding='utf-8') as f:
+                json.dump(state, f, indent=4)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not save workflow state: {e}[/yellow]")
+
+    def clear_state(self):
+        state_path = os.path.join(self.target_dir, ".workflow_state.json")
+        if os.path.exists(state_path):
+            try:
+                os.remove(state_path)
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not clear workflow state: {e}[/yellow]")
+
     def get_codebase_context(self, user_request: str = "") -> str:
         """
         Walks the target directory, reads files, and formats them into a single context string.
@@ -273,60 +306,71 @@ class Orchestrator:
             return True
 
         # ----------------------------------------------------
-        # Phase 1: Planning Loop
+        # Phase 1: Planning Loop (with Checkpoint/Resume)
         # ----------------------------------------------------
-        console.print("\n[bold yellow]=== PHASE 1: PLANNING ===[/bold yellow]")
-        
-        codebase_context = self.get_codebase_context(user_request)
-        approved_plan = None
-        plan_history = []
-        
-        for iteration in range(1, config.MAX_PLAN_ITERATIONS + 1):
-            console.print(f"\n[bold]Planning Iteration {iteration}/{config.MAX_PLAN_ITERATIONS}[/bold]")
+        state = self.load_state()
+        if state:
+            approved_plan = state["plan"]
+            sub_tasks = state["sub_tasks"]
+            start_step_idx = state["current_step_index"]
+            console.print(Panel(f"[bold green]Found existing workflow state![/bold green]\nResuming from Step {start_step_idx}/{len(sub_tasks)}\n[bold]Current Step:[/bold] {sub_tasks[start_step_idx-1]}", title="Resuming Workflow", border_style="green"))
+        else:
+            console.print("\n[bold yellow]=== PHASE 1: PLANNING ===[/bold yellow]")
+            codebase_context = self.get_codebase_context(user_request)
+            approved_plan = None
+            plan_history = []
             
-            # 1. Planner drafts plan
-            with console.status("[cyan]Planner is drafting implementation plan...[/cyan]"):
-                proposed_plan = self.planner.plan(user_request, codebase_context)
+            for iteration in range(1, config.MAX_PLAN_ITERATIONS + 1):
+                console.print(f"\n[bold]Planning Iteration {iteration}/{config.MAX_PLAN_ITERATIONS}[/bold]")
                 
-            console.print(Panel(Markdown(proposed_plan), title=f"Proposed Plan (Iteration {iteration})"))
-            
-            # 2. QA reviews plan
-            with console.status("[cyan]QA is reviewing proposed plan...[/cyan]"):
-                qa_response = self.qa.review_plan(user_request, proposed_plan, codebase_context)
+                # 1. Planner drafts plan
+                with console.status("[cyan]Planner is drafting implementation plan...[/cyan]"):
+                    proposed_plan = self.planner.plan(user_request, codebase_context)
+                    
+                console.print(Panel(Markdown(proposed_plan), title=f"Proposed Plan (Iteration {iteration})"))
                 
-            is_approved, feedback = self.parse_qa_decision(qa_response)
-            console.print(Panel(qa_response, title=f"QA Review Result (Iteration {iteration})", border_style="green" if is_approved else "red"))
+                # 2. QA reviews plan
+                with console.status("[cyan]QA is reviewing proposed plan...[/cyan]"):
+                    qa_response = self.qa.review_plan(user_request, proposed_plan, codebase_context)
+                    
+                is_approved, feedback = self.parse_qa_decision(qa_response)
+                console.print(Panel(qa_response, title=f"QA Review Result (Iteration {iteration})", border_style="green" if is_approved else "red"))
+                
+                if is_approved:
+                    approved_plan = proposed_plan
+                    console.print("[bold green]✓ Implementation plan approved by QA![/bold green]")
+                    break
+                else:
+                    console.print(f"[yellow]✗ Plan rejected. Feeding feedback back to planner.[/yellow]")
+                    plan_history.append(f"--- Iteration {iteration} proposed plan ---\n{proposed_plan}\n\nQA Feedback:\n{feedback}")
+                    # Combine user request with planning history for next iteration
+                    user_request_with_history = f"{user_request}\n\nPlanning History:\n" + "\n\n".join(plan_history)
+                    codebase_context = self.get_codebase_context(user_request)
             
-            if is_approved:
-                approved_plan = proposed_plan
-                console.print("[bold green]✓ Implementation plan approved by QA![/bold green]")
-                break
+            if not approved_plan:
+                console.print("[red]QA rejected all plan attempts. Aborting workflow.[/red]")
+                return False
+                
+            # Parse checklist items from approved plan
+            sub_tasks = re.findall(r'\d+\.\s*\[\s*\]\s*(.*)', approved_plan)
+            if not sub_tasks:
+                sub_tasks = [user_request]
+                console.print("[cyan]No sub-task checklist found in the approved plan. Treating the whole request as a single task.[/cyan]")
             else:
-                console.print(f"[yellow]✗ Plan rejected. Feeding feedback back to planner.[/yellow]")
-                plan_history.append(f"--- Iteration {iteration} proposed plan ---\n{proposed_plan}\n\nQA Feedback:\n{feedback}")
-                # Combine user request with planning history for next iteration
-                user_request_with_history = f"{user_request}\n\nPlanning History:\n" + "\n\n".join(plan_history)
-                # We update the codebase context just in case, but it remains the same
-                codebase_context = self.get_codebase_context(user_request)
-        
-        if not approved_plan:
-            console.print("[red]QA rejected all plan attempts. Aborting workflow.[/red]")
-            return F        # ----------------------------------------------------
+                console.print(f"[cyan]Parsed {len(sub_tasks)} sub-tasks from the plan checklist:[/cyan]")
+                for i, task in enumerate(sub_tasks, 1):
+                    console.print(f"  {i}. {task}")
+            
+            start_step_idx = 1
+            self.save_state(approved_plan, sub_tasks, start_step_idx)
+
+        # ----------------------------------------------------
         # Phase 2: Development & Coding Loop (Incremental Sub-tasks)
         # ----------------------------------------------------
         console.print("\n[bold yellow]=== PHASE 2: DEVELOPMENT ===[/bold yellow]")
         
-        # Parse checklist items from approved plan
-        sub_tasks = re.findall(r'\d+\.\s*\[\s*\]\s*(.*)', approved_plan)
-        if not sub_tasks:
-            sub_tasks = [user_request]
-            console.print("[cyan]No sub-task checklist found in the approved plan. Treating the whole request as a single task.[/cyan]")
-        else:
-            console.print(f"[cyan]Parsed {len(sub_tasks)} sub-tasks from the plan checklist:[/cyan]")
-            for i, task in enumerate(sub_tasks, 1):
-                console.print(f"  {i}. {task}")
-                
-        for step_idx, sub_task in enumerate(sub_tasks, 1):
+        for step_idx in range(start_step_idx, len(sub_tasks) + 1):
+            sub_task = sub_tasks[step_idx - 1]
             console.print(Panel(f"[bold cyan]Executing Sub-task {step_idx}/{len(sub_tasks)}: {sub_task}[/bold cyan]", border_style="cyan"))
             
             approved_code = None
@@ -400,6 +444,11 @@ class Orchestrator:
             # Apply changes for this step to disk so subsequent steps read them
             console.print(f"\n[bold yellow]=== APPLYING CHANGES FOR STEP {step_idx} ===[/bold yellow]")
             self.write_files_to_disk(files_to_write)
+            
+            # Save checkpoint state incremented for the next step
+            self.save_state(approved_plan, sub_tasks, step_idx + 1)
 
+        # Clear state file upon successful completion of the entire checklist
+        self.clear_state()
         console.print("[bold green]✓ Workflow completed successfully![/bold green]")
         return True
