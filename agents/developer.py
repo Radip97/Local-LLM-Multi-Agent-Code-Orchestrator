@@ -60,11 +60,14 @@ class DeveloperAgent(BaseAgent):
     def __init__(self, model_name: str = None):
         super().__init__(role="Developer", model_name=model_name or config.DEVELOPER_MODEL)
 
-    def write_code(self, user_request: str, approved_plan: str, codebase_context: str, developer_history: str = "") -> str:
+    def write_code(self, user_request: str, approved_plan: str, codebase_context: str,
+                   developer_history: str = "", image_paths: list = None) -> str:
         """
         Executes the approved plan and generates code modifications.
+        If image_paths are provided, they are sent as visual reference to the LLM.
         """
         import re
+        image_paths = image_paths or []
         # Truncate approved_plan if it is too long to save context
         plan_summary = approved_plan
         if len(approved_plan) > 1500:
@@ -75,8 +78,12 @@ class DeveloperAgent(BaseAgent):
             else:
                 plan_summary = approved_plan[:1500] + "\n... (plan truncated for context) ..."
 
+        image_note = ""
+        if image_paths:
+            image_note = f"\n\n### Visual Reference Images:\nYou have been provided {len(image_paths)} reference image(s). Match the aesthetic, color palette, and visual style shown in these images in your implementation.\n"
+
         user_prompt = f"""### User Coding Request:
-{user_request}
+{user_request}{image_note}
 
 ### Approved Plan Specification:
 {plan_summary}
@@ -91,8 +98,9 @@ class DeveloperAgent(BaseAgent):
 
 Please review the feedback above and rewrite/correct the files accordingly, preserving the XML tags.
 """
-        return self.call_llm(
+        return self.call_llm_with_images(
             system_prompt=DEVELOPER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            temperature=0.2
+            temperature=0.2,
+            image_paths=image_paths
         )

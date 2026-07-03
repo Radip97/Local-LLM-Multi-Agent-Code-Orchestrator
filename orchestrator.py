@@ -58,6 +58,20 @@ class Orchestrator:
             except Exception as e:
                 console.print(f"[yellow]Warning: Could not clear workflow state: {e}[/yellow]")
 
+    def get_reference_images(self) -> list:
+        """
+        Scans the target directory for image files to use as visual reference.
+        Returns a list of absolute file paths for supported image formats.
+        """
+        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
+        image_paths = []
+        for root, dirs, files in os.walk(self.target_dir):
+            dirs[:] = [d for d in dirs if d not in config.IGNORE_DIRS]
+            for file in files:
+                if os.path.splitext(file)[1].lower() in image_extensions:
+                    image_paths.append(os.path.join(root, file))
+        return image_paths
+
     def get_codebase_context(self, user_request: str = "") -> str:
         """
         Walks the target directory, reads files, and formats them into a single context string.
@@ -447,6 +461,13 @@ class Orchestrator:
                 console.print(f"[red]Error: Could not connect to local LLM server at {config.API_BASE_URL}. Ensure LM Studio/Ollama is running. Details: {e}[/red]")
                 sys.exit(1)
 
+        # Detect reference images in target directory
+        reference_images = self.get_reference_images()
+        if reference_images:
+            console.print(f"[cyan]Found {len(reference_images)} reference image(s) in project: {[os.path.basename(p) for p in reference_images]}[/cyan]")
+        else:
+            console.print("[dim]No reference images found in project directory.[/dim]")
+
         # ----------------------------------------------------
         # Fast Path Query Routing
         # ----------------------------------------------------
@@ -484,7 +505,7 @@ class Orchestrator:
                 
                 # 1. Planner drafts plan
                 with console.status("[cyan]Planner is drafting implementation plan...[/cyan]"):
-                    proposed_plan = self.planner.plan(user_request, codebase_context)
+                    proposed_plan = self.planner.plan(user_request, codebase_context, image_paths=reference_images)
                     
                 console.print(Panel(Markdown(proposed_plan), title=f"Proposed Plan (Iteration {iteration})"))
                 
@@ -558,7 +579,8 @@ class Orchestrator:
                         user_request=f"Overall Goal: {user_request}\n\n### CURRENT EXCLUSIVE STEP TO IMPLEMENT:\n{sub_task_instruction}\n\nCRITICAL: Implement ONLY the changes specified in the CURRENT STEP. Do NOT create or modify other files ahead of time. Focus exclusively on the files needed for this step.",
                         approved_plan=step_plan,
                         codebase_context=codebase_context,
-                        developer_history=dev_history
+                        developer_history=dev_history,
+                        image_paths=reference_images
                     )
                     
                 console.print(Panel(Markdown(code_changes), title=f"Developer Output (Step {step_idx} - Iteration {iteration})"))

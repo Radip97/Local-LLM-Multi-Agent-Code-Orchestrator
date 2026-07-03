@@ -72,20 +72,27 @@ class PlannerAgent(BaseAgent):
     def __init__(self, model_name: str = None):
         super().__init__(role="Planner", model_name=model_name or config.PLANNER_MODEL)
 
-    def plan(self, user_request: str, codebase_context: str) -> str:
+    def plan(self, user_request: str, codebase_context: str, image_paths: list = None) -> str:
         """
         Generates an implementation plan.
+        If image_paths are provided, they are sent as visual reference to the LLM.
         """
+        image_paths = image_paths or []
+        image_note = ""
+        if image_paths:
+            image_note = f"\n\n### Visual Reference Images:\nYou have been provided {len(image_paths)} reference image(s). Use them to understand the desired aesthetic, color palette, layout, and visual style when planning the implementation.\n"
+
         user_prompt = f"""### User Coding Request:
-{user_request}
+{user_request}{image_note}
 
 ### Current Codebase:
 {codebase_context}
 
 Please generate the step-by-step implementation plan.
 """
-        return self.call_llm(
+        return self.call_llm_with_images(
             system_prompt=PLANNER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            temperature=0.2
+            temperature=0.2,
+            image_paths=image_paths
         )

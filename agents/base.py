@@ -1,4 +1,7 @@
 import sys
+import os
+import base64
+import mimetypes
 from openai import OpenAI
 import config
 
@@ -66,17 +69,82 @@ class BaseAgent:
             print("Please ensure LM Studio or Ollama is running and its server is active.", file=sys.stderr)
             sys.exit(1)
 
+    @staticmethod
+    def encode_images(image_paths: list[str]) -> list[dict]:
+        """
+        Encodes a list of image file paths into OpenAI-compatible multimodal
+        content parts using base64 data URLs.
+        Returns a list of image_url content dicts ready to be embedded in a message.
+        """
+        parts = []
+        for path in image_paths:
+            if not os.path.exists(path):
+                print(f"[Warning] Image not found, skipping: {path}", file=sys.stderr)
+                continue
+            mime_type, _ = mimetypes.guess_type(path)
+            if mime_type is None:
+                # Default to jpeg if unknown
+                ext = os.path.splitext(path)[1].lower()
+                mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                            ".gif": "image/gif", ".webp": "image/webp"}
+                mime_type = mime_map.get(ext, "image/jpeg")
+            try:
+                with open(path, "rb") as f:
+                    b64_data = base64.b64encode(f.read()).decode("utf-8")
+                parts.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{b64_data}"
+                    }
+                })
+            except Exception as e:
+                print(f"[Warning] Failed to encode image '{path}': {e}", file=sys.stderr)
+        return parts
+
     def call_llm(self, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
         """
         Utility method to call the local LLM using the OpenAI client.
+        Text-only call. Use call_llm_with_images() for multimodal calls.
+        """
+        return self.call_llm_with_images(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            image_paths=[]
+        )
+
+    def call_llm_with_images(self, system_prompt: str, user_prompt: str,
+                              temperature: float = 0.2, image_paths: list[str] = None) -> str:
+        """
+        Calls the LLM with optional image attachments.
+        If image_paths is provided and non-empty, images are encoded as base64
+        and embedded in the user message as multimodal content parts.
+        Falls back to text-only if no images provided.
         """
         model = self.get_model()
+        image_paths = image_paths or []
+
+        # Build the user message content
+        if image_paths:
+            image_parts = self.encode_images(image_paths)
+            if image_parts:
+                # Multimodal message: text + images
+                user_content = [
+                    {"type": "text", "text": user_prompt},
+                    *image_parts
+                ]
+            else:
+                # All images failed to encode — fall back to text
+                user_content = user_prompt
+        else:
+            user_content = user_prompt
+
         try:
             response = self.client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_content}
                 ],
                 temperature=temperature,
             )
