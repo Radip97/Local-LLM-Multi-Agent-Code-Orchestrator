@@ -513,8 +513,8 @@ class Orchestrator:
             for iteration in range(1, config.MAX_CODE_ITERATIONS + 1):
                 console.print(f"\n[bold]Development Iteration {iteration}/{config.MAX_CODE_ITERATIONS}[/bold]")
                 
-                # Fetch step-relevant codebase context (RAG-Lite filtered by sub_task)
-                codebase_context = self.get_codebase_context(sub_task)
+                # Fetch step-relevant codebase context (RAG-Lite filtered by step_plan)
+                codebase_context = self.get_codebase_context(step_plan or sub_task)
                 
                 # Prepend the living technical specification registry if it exists
                 spec_content = self.get_project_spec()
