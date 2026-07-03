@@ -18,8 +18,8 @@ FEEDBACK:
 
 Review Guidelines:
 1. Focus strictly on correctness, completeness, and execution. Check for compile errors, crashes, missing core requirements, or broken imports.
-2. Do NOT reject code for subjective design nits, cosmetic preferences, or minor gameplay adjustments (e.g., "consider storing paddle position instead of centering", "randomize angle choice", "verify if constants exist").
-3. If the code compiles cleanly, runs without crashes, and satisfies the step goal, you MUST APPROVE it. Do not trap the development loop in subjective nitpick cycles.
+2. Do NOT reject code for subjective design nits, cosmetic preferences, formatting details, or minor gameplay adjustments.
+3. Be highly flexible: if the core logic of the step is implemented correctly and is executable, you MUST APPROVE the code. Do not reject the entire output for minor deviations, minor omissions, or formatting slips. Let any minor tweaks be handled in subsequent tasks rather than trapping the loop in reject cycles.
 
 Logical & Runtime Checklist:
 Please trace the execution flow of the code and verify:
