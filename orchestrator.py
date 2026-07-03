@@ -157,40 +157,58 @@ class Orchestrator:
     def parse_file_blocks(self, content: str) -> list[tuple[str, str]]:
         """
         Parses xml file blocks from the developer agent's response.
-        Returns a list of (filepath, content) tuples. Supports markdown block fallback.
+        Returns a list of (filepath, content) tuples. Supports markdown block fallback and raw text fallback.
         """
         xml_pattern = r'<file\s+path=["\']([^"\']+)["\']>\s*([\s\S]*?)\s*</file>'
         blocks = re.findall(xml_pattern, content)
         if blocks:
             return blocks
             
-        # Fallback: Parse markdown code blocks and map them to filenames
+        # Fallback 1: Parse markdown code blocks and map them to filenames
         markdown_blocks = re.findall(r'```(?:\w+)?\n([\s\S]*?)\n```', content)
-        if not markdown_blocks:
-            return []
+        if markdown_blocks:
+            # Try to find filenames in headers near the blocks
+            filenames = re.findall(r'(?:^|\n)(?:#+\s+|\*\*|File:\s*)([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))', content, re.IGNORECASE)
             
-        # Try to find filenames in headers near the blocks
-        filenames = re.findall(r'(?:^|\n)(?:#+\s+|\*\*|File:\s*)([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))', content, re.IGNORECASE)
-        
-        seen = set()
-        clean_filenames = []
-        for f in filenames:
-            name = os.path.basename(f)
-            if name not in seen:
-                seen.add(name)
-                clean_filenames.append(f)
+            seen = set()
+            clean_filenames = []
+            for f in filenames:
+                name = os.path.basename(f)
+                if name not in seen:
+                    seen.add(name)
+                    clean_filenames.append(f)
+                    
+            if len(clean_filenames) == len(markdown_blocks):
+                return list(zip(clean_filenames, markdown_blocks))
                 
-        if len(clean_filenames) == len(markdown_blocks):
-            return list(zip(clean_filenames, markdown_blocks))
-            
+            all_mentioned_files = re.findall(r'\b([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))\b', content, re.IGNORECASE)
+            unique_mentioned = []
+            for f in all_mentioned_files:
+                if f not in unique_mentioned:
+                    unique_mentioned.append(f)
+                    
+            if len(markdown_blocks) == 1 and len(unique_mentioned) >= 1:
+                return [(unique_mentioned[0], markdown_blocks[0])]
+                
+        # Fallback 2: Extract raw code text if no tags are present but exactly one filename is detected
         all_mentioned_files = re.findall(r'\b([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))\b', content, re.IGNORECASE)
         unique_mentioned = []
         for f in all_mentioned_files:
             if f not in unique_mentioned:
                 unique_mentioned.append(f)
                 
-        if len(markdown_blocks) == 1 and len(unique_mentioned) >= 1:
-            return [(unique_mentioned[0], markdown_blocks[0])]
+        if len(unique_mentioned) == 1:
+            filename = unique_mentioned[0]
+            lines = content.split('\n')
+            code_start_idx = 0
+            code_starters = ('/*', '#', '<', 'import', 'from', 'const', 'let', 'var', 'function', 'class', ':root', '*', 'body', 'html', '{', '@')
+            for idx, line in enumerate(lines):
+                stripped = line.strip()
+                if any(stripped.startswith(starter) for starter in code_starters) or stripped.startswith('•'):
+                    code_start_idx = idx
+                    break
+            raw_code = '\n'.join(lines[code_start_idx:])
+            return [(filename, raw_code)]
             
         return []
 
