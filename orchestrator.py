@@ -102,21 +102,48 @@ class Orchestrator:
         # 3. Dynamic RAG-Lite: Filter files if codebase is large
         selected_files = candidate_files
         if len(candidate_files) > 2 and user_request:
-            prompt_words = set(re.findall(r'\w+', user_request.lower()))
-            prompt_words = {w for w in prompt_words if len(w) > 2}
-            
+            # --- Strategy 1: Extract explicit file paths from the step plan (e.g. `frontend/styles.css`) ---
+            # Matches path-like tokens: optional dir prefix + filename with extension
+            explicit_paths = re.findall(
+                r'[\w./\\-]+\.(?:py|js|html|css|ts|tsx|jsx|json|md|yaml|yml|sh|txt)',
+                user_request,
+                re.IGNORECASE
+            )
+            # Normalize slashes for cross-platform matching
+            explicit_paths = [p.replace('\\', '/').lstrip('./') for p in explicit_paths]
+
             matched_files = []
             for rel_path in candidate_files:
-                path_parts = set(re.findall(r'\w+', rel_path.lower()))
-                if prompt_words.intersection(path_parts):
+                norm_rel = rel_path.replace('\\', '/')
+                # Match if any extracted path is a suffix of the candidate (handles subdir prefixes)
+                if any(norm_rel.endswith(ep) or ep.endswith(norm_rel) for ep in explicit_paths):
                     matched_files.append(rel_path)
-            
+
             if matched_files:
+                # Always include project_spec.md if it exists, for living spec tracking
+                spec_files = [f for f in candidate_files if os.path.basename(f) == 'project_spec.md']
+                for sf in spec_files:
+                    if sf not in matched_files:
+                        matched_files.insert(0, sf)
                 selected_files = matched_files
-                console.print(f"[cyan]RAG-Lite: Large codebase ({len(candidate_files)} files). Selected {len(selected_files)} relevant files: {selected_files}[/cyan]")
+                console.print(f"[cyan]RAG-Lite: Extracted {len(selected_files)} relevant files from step plan: {selected_files}[/cyan]")
             else:
-                selected_files = candidate_files[:6]
-                console.print(f"[yellow]RAG-Lite: Large codebase. Loading first {len(selected_files)} files to fit context limit: {selected_files}[/yellow]")
+                # --- Strategy 2: Fallback to loose keyword matching ---
+                prompt_words = set(re.findall(r'\w+', user_request.lower()))
+                prompt_words = {w for w in prompt_words if len(w) > 2}
+
+                kw_matched = []
+                for rel_path in candidate_files:
+                    path_parts = set(re.findall(r'\w+', rel_path.lower()))
+                    if prompt_words.intersection(path_parts):
+                        kw_matched.append(rel_path)
+
+                if kw_matched:
+                    selected_files = kw_matched
+                    console.print(f"[cyan]RAG-Lite: Keyword-matched {len(selected_files)} relevant files: {selected_files}[/cyan]")
+                else:
+                    selected_files = candidate_files[:6]
+                    console.print(f"[yellow]RAG-Lite: No path or keyword matches. Loading first {len(selected_files)} files as fallback: {selected_files}[/yellow]")
 
         # 4. Load the selected files
         for rel_path in selected_files:
@@ -446,7 +473,9 @@ class Orchestrator:
             console.print(Panel(f"[bold green]Found existing workflow state![/bold green]\nResuming from Step {start_step_idx}/{len(sub_tasks)}\n[bold]Current Step:[/bold] {sub_tasks[start_step_idx-1]}", title="Resuming Workflow", border_style="green"))
         else:
             console.print("\n[bold yellow]=== PHASE 1: PLANNING ===[/bold yellow]")
-            codebase_context = self.get_codebase_context(user_request)
+            # Planning only needs the project spec (source of truth), not the full codebase
+            spec_content = self.get_project_spec()
+            codebase_context = f"### PROJECT SPECIFICATION (Source of Truth):\n{spec_content}" if spec_content else "(No project spec found. This appears to be a fresh project.)"
             approved_plan = None
             plan_history = []
             
@@ -475,7 +504,9 @@ class Orchestrator:
                     plan_history.append(f"--- Iteration {iteration} proposed plan ---\n{proposed_plan}\n\nQA Feedback:\n{feedback}")
                     # Combine user request with planning history for next iteration
                     user_request_with_history = f"{user_request}\n\nPlanning History:\n" + "\n\n".join(plan_history)
-                    codebase_context = self.get_codebase_context(user_request)
+                    # Refresh spec in case it changed between iterations, but stay lightweight
+                    spec_content = self.get_project_spec()
+                    codebase_context = f"### PROJECT SPECIFICATION (Source of Truth):\n{spec_content}" if spec_content else "(No project spec found.)"
             
             if not approved_plan:
                 console.print("[red]QA rejected all plan attempts. Aborting workflow.[/red]")
