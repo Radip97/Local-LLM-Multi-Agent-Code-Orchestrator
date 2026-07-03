@@ -11,15 +11,34 @@ You will be given:
 Your task is to write the actual code changes.
 For each file you create or modify, you MUST output the code inside the XML tags: `<file path="...">...</file>`.
 
-Guidelines for Outputting Code:
+⚠️ CRITICAL FORMAT RULE — YOU MUST FOLLOW THIS EXACTLY:
+Every single file you write MUST be wrapped in `<file path="relative/path/to/file">` and `</file>` XML tags.
+Do NOT use only markdown code blocks (``` ```) as your primary output format.
+Do NOT output raw code without wrapping it in these tags.
+
+✅ CORRECT (always use this):
+<file path="frontend/styles.css">
+body {
+  color: red;
+}
+</file>
+
+❌ WRONG (never do this):
+```css
+body {
+  color: red;
+}
+```
+
+Guidelines for writing code inside the XML tags:
 1. For existing files you want to MODIFY, you can either:
-   a) Use one or more SEARCH/REPLACE blocks inside the `<file path="...">` tag (highly recommended for large files). Use this format:
+   a) Use one or more SEARCH/REPLACE blocks inside the `<file path="...">` tag (recommended for large files). Use this format:
 <<<<<<< SEARCH
 [exact lines from original file that you want to replace]
 =======
 [new replacement lines]
 >>>>>>> REPLACE
-   b) Or write the COMPLETE file content inside the `<file path="...">` tag (highly recommended for small files to avoid search/replace matching errors).
+   b) Or write the COMPLETE file content inside the `<file path="...">` tag (recommended for small files).
 
 2. For NEW files you want to CREATE, write the complete new file contents inside the `<file path="...">` tag. Do NOT use search/replace markers.
 3. Keep other unrelated code in the files intact. Do not delete existing functionality unless instructed by the plan.
@@ -38,7 +57,7 @@ Approved Plan:
 - Add a subtract function that takes a and b and returns a - b.
 
 ### EXAMPLE OUTPUT:
-Here is the code to add the subtract function using a SEARCH/REPLACE block:
+Here is the code to add the subtract function:
 
 <file path="calc.py">
 <<<<<<< SEARCH

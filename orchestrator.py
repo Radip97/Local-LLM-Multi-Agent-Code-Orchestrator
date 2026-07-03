@@ -197,20 +197,51 @@ class Orchestrator:
 
     def parse_file_blocks(self, content: str) -> list[tuple[str, str]]:
         """
-        Parses xml file blocks from the developer agent's response.
-        Returns a list of (filepath, content) tuples. Supports markdown block fallback and raw text fallback.
+        Parses file blocks from the developer agent's response.
+        Returns a list of (filepath, content) tuples.
+        Tries multiple strategies in order of reliability.
         """
+        FILE_EXTS = r'(?:py|js|ts|tsx|jsx|css|html|json|yaml|yml|sh|txt|md)'
+
+        # --- Strategy 1: XML <file path="..."> tags (preferred format) ---
         xml_pattern = r'<file\s+path=["\']([^"\']+)["\']>\s*([\s\S]*?)\s*</file>'
         blocks = re.findall(xml_pattern, content)
         if blocks:
             return blocks
-            
-        # Fallback 1: Parse markdown code blocks and map them to filenames
+
+        # --- Strategy 2: Markdown code blocks with filename hints ---
+        # Collects all (filename, code) pairs by scanning for filename immediately
+        # before a fenced code block. Handles formats like:
+        #   **frontend/styles.css**      -> bold
+        #   `frontend/styles.css`        -> inline code
+        #   ### frontend/styles.css      -> header
+        #   File: frontend/styles.css    -> explicit label
+        #   # path: frontend/styles.css  -> path annotation inside block
+        code_block_pattern = re.compile(
+            r'(?:(?:(?:\*\*|`|#+\s*|(?:File|file|PATH|path):\s*)([\w.\-/\\]+\.' + FILE_EXTS + r')(?:\*\*|`)?)'  # filename before block
+            r'|(?:```(?:\w+)?\n(?:#\s*(?:path|file):\s*([\w.\-/\\]+\.' + FILE_EXTS + r')\n)))'  # path annotation inside block
+            r'[\s\S]*?'
+            r'```(?:\w+)?\n([\s\S]*?)\n```',  # the code itself
+            re.IGNORECASE
+        )
+
+        paired = []
+        for m in code_block_pattern.finditer(content):
+            fname = m.group(1) or m.group(2)
+            code = m.group(3)
+            if fname and code:
+                paired.append((fname.strip(), code.strip()))
+
+        if paired:
+            return paired
+
+        # --- Strategy 3: Any markdown code blocks, matched to nearby filenames ---
         markdown_blocks = re.findall(r'```(?:\w+)?\n([\s\S]*?)\n```', content)
         if markdown_blocks:
-            # Try to find filenames in headers near the blocks
-            filenames = re.findall(r'(?:^|\n)(?:#+\s+|\*\*|File:\s*)([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))', content, re.IGNORECASE)
-            
+            filenames = re.findall(
+                r'(?:^|\n)(?:#+\s+|\*\*|`|File:\s*)([\w\-./\\]+\.' + FILE_EXTS + r')(?:`|\*\*)?',
+                content, re.IGNORECASE
+            )
             seen = set()
             clean_filenames = []
             for f in filenames:
@@ -218,39 +249,40 @@ class Orchestrator:
                 if name not in seen:
                     seen.add(name)
                     clean_filenames.append(f)
-                    
+
             if len(clean_filenames) == len(markdown_blocks):
                 return list(zip(clean_filenames, markdown_blocks))
-                
-            all_mentioned_files = re.findall(r'\b([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))\b', content, re.IGNORECASE)
-            unique_mentioned = []
-            for f in all_mentioned_files:
-                if f not in unique_mentioned:
-                    unique_mentioned.append(f)
-                    
-            if len(markdown_blocks) == 1 and len(unique_mentioned) >= 1:
-                return [(unique_mentioned[0], markdown_blocks[0])]
-                
-        # Fallback 2: Extract raw code text if no tags are present but exactly one filename is detected
-        all_mentioned_files = re.findall(r'\b([\w\-/\\]+\.(?:py|js|css|html|json|csv|txt))\b', content, re.IGNORECASE)
-        unique_mentioned = []
-        for f in all_mentioned_files:
-            if f not in unique_mentioned:
-                unique_mentioned.append(f)
-                
-        if len(unique_mentioned) == 1:
-            filename = unique_mentioned[0]
+
+            # If counts differ, try matching all mentioned filenames
+            all_files = re.findall(r'\b([\w\-./\\]+\.' + FILE_EXTS + r')\b', content, re.IGNORECASE)
+            unique = []
+            for f in all_files:
+                if f not in unique:
+                    unique.append(f)
+
+            if len(markdown_blocks) == 1 and unique:
+                return [(unique[0], markdown_blocks[0])]
+
+        # --- Strategy 4: Raw code with a single detectable filename ---
+        all_files = re.findall(r'\b([\w\-./\\]+\.' + FILE_EXTS + r')\b', content, re.IGNORECASE)
+        unique = []
+        for f in all_files:
+            if f not in unique:
+                unique.append(f)
+
+        if len(unique) == 1:
+            filename = unique[0]
             lines = content.split('\n')
             code_start_idx = 0
-            code_starters = ('/*', '#', '<', 'import', 'from', 'const', 'let', 'var', 'function', 'class', ':root', '*', 'body', 'html', '{', '@')
+            code_starters = ('/*', '#', '<', 'import', 'from', 'const', 'let', 'var',
+                             'function', 'class', ':root', '*', 'body', 'html', '{', '@')
             for idx, line in enumerate(lines):
                 stripped = line.strip()
-                if any(stripped.startswith(starter) for starter in code_starters) or stripped.startswith('•'):
+                if any(stripped.startswith(s) for s in code_starters):
                     code_start_idx = idx
                     break
-            raw_code = '\n'.join(lines[code_start_idx:])
-            return [(filename, raw_code)]
-            
+            return [(filename, '\n'.join(lines[code_start_idx:]))]
+
         return []
 
     def apply_search_replace(self, file_path: str, block_content: str) -> str:
