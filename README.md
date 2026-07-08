@@ -1,105 +1,108 @@
-# Local LLM Multi-Agent Code Orchestrator
+# Local LLM Agent Coding Orchestrator
 
-An autonomous, multi-agent software development pipeline designed to run entirely on **local open-weight LLMs** (using LM Studio, Ollama, or similar OpenAI-compatible local servers). 
-
-The system implements a structured code-writing state machine featuring specialized agent roles (**Planner**, **Developer**, **QA**) orchestrated to safely update local codebases.
+A local-first, single-LLM autonomous agent orchestrator that resolves coding tasks, applies file patches, and validates changes using a feedback-driven test execution loop. Optimized to run on consumer GPUs using OpenAI-compatible local servers like **LM Studio**, **Ollama**, or **llama.cpp**.
 
 ---
 
-## Architecture & Workflow
-
-The orchestrator manages data passing and execution states in a strict verification loop:
+## 🛠️ Unified System Flow
 
 ```mermaid
 graph TD
-    User([User Prompt]) --> Orchestrator[Orchestrator Control Loop]
+    User([User Task]) --> Main[main.py Entrypoint]
+    Main --> Scanner[Scanner: Dependency Graph & Index]
+    Scanner --> Loop[Iteration Loop 1-10]
     
-    subgraph Plan Phase
-        Orchestrator -->|Task & Codebase Context| Planner[Planner Agent]
-        Planner -->|Proposed Plan| QA_Plan[QA Agent]
-        QA_Plan -->|APPROVED / REJECTED| Orchestrator
-        Orchestrator -->|If Rejected: Feedback Loop| Planner
+    subgraph Execution Loop
+        Loop --> Retriever[Retrieve Context & Memories]
+        Retriever --> Wiki[Wiki Searcher: Query Guidelines]
+        Wiki --> Planner[Planner Agent: Design Solution]
+        Planner --> Coder[Implementation Agent: Generate Patches]
+        Coder --> Validator[Validate Patches]
+        Validator --> Apply[Apply Overwrite / Fuzzy Patch]
+        Apply --> Runner[Run Compiler & Tests]
+        
+        Runner -->|PASS| Done([Success: Return Codebase])
+        Runner -->|FAIL| Memory[Memory: Log Error & Failed Patch]
+        Memory -->|Sync| Obsidian[Obsidian Vault: Update Logs]
+        Obsidian --> Loop
     end
-
-    subgraph Development Phase
-        Orchestrator -->|Living Spec & Plan| Developer[Developer Agent]
-        Developer -->|File Block Modifications| QA_Code[QA Agent]
-        QA_Code -->|APPROVED / REJECTED| Orchestrator
-        Orchestrator -->|If Rejected: Feedback Loop| Developer
-    end
-    
-    Orchestrator -->|Final Approvals Met| DiskWrite[(Write to Target Project Filesystem)]
-    DiskWrite -->|Generate/Update Spec| ProjectSpec[project_spec.md Registry]
-    ProjectSpec -->|Inject as Source of Truth| Developer
 ```
 
 ---
 
-## Key Features
+## ✨ Key Features
 
-- **Local-First Inference**: Fully optimized for consumer-hardware-friendly models (e.g., Qwen 2.5 Coder 7B/14B, Gemma-2 9B, Unsloth Qwen 3.5 9B).
-- **Living Project Spec & Interface Registry (`project_spec.md`)**: Dynamically generates and maintains a technical specification sheet of the codebase. At each step, the orchestrator updates this file with the public interface methods, classes, and properties introduced. This spec is fed back to the Developer as the single source of truth, drastically reducing token bloat and preventing interface mismatches.
-- **Workflow State Checkpointing & Resumability**: Saves execution states after every approved sub-task. If the local LLM server crashes, runs out of memory, or gets interrupted, the orchestrator automatically resumes from the last completed checkpoint.
-- **Search-and-Replace Parsing Fallback** *(New)*: Detects when git diff style SEARCH/REPLACE blocks fail due to minor spacing or indentation mismatches, automatically falling back to robust partial patch matching to write the code safely to disk without syntax loss.
-- **Optimized Developer Prompts for Local LLMs** *(New)*: Restructures developer instructions to place the immediate sub-task as the primary header, demoting the overall project goal to bottom context. This keeps local 9B models strictly focused on the current step boundaries.
-- **Aligned QA Rules & Flexibility** *(New)*: Enforces relaxed QA review rules for client-side sandboxed environments, permitting standard shortcuts like `eval()` and early feature completion (over-implementation) while accepting both search/replace blocks and full file submissions.
-- **QA Deadlock Loop Override** *(New)*: A safety override that automatically approves changes on Iteration 3 if the code compiles cleanly and passes syntax checks, preventing pedantic QA loops from locking the workflow.
-- **Flexible Partial Acceptance**: Parses and validates syntax for each generated code block independently. If a syntax error is detected, only that specific file block is rejected and sent back to the developer for correction, while valid file blocks are accepted and written immediately to prevent loop deadlocks.
-- **Smart Model Mapping**: Automatically detects loaded models from your local endpoint and maps them to agent roles according to their capabilities.
-- **XML-Based Code Extraction**: Developer outputs are captured in structured `<file path="...">` tags, allowing the Orchestrator to securely parse, create, or overwrite files without manual developer intervention.
-- **Self-Healing Loop**: If the QA agent rejects a plan or implementation, the Orchestrator automatically pipes the specific feedback back to the respective agent for corrections (up to a configurable maximum of 5 iterations).
-- **Legacy Python Monkeypatching**: Built-in runtime patch (`patch_env.py`) to run modern libraries (like `openai`, `pydantic`, `anyio`) on legacy or early Python alpha environments (such as Python 3.10.0a3) by resolving missing standard library types and dataclass keyword arguments.
+* **Dual-Format Patch Engine:** Supports both targeted `SEARCH/REPLACE` blocks and full-file `OVERWRITE ALL` blocks. Uses fuzzy regex whitespace matching to tolerate minor indentation fluctuations in smaller (9B/7B) parameter coder models.
+* **Obsidian Vault Memory Sync:** Automatically syncs execution history, success diffs, and error diagnostics directly into an Obsidian vault (`obsidian_vault/`). Auto-generates local wiki-links (`[[Project Index]]`, `[[Learnings]]`) to build a visual knowledge graph of agent activities.
+* **LLM Wiki Guidelines (RAG):** Scans the `obsidian_vault/Wiki/` directory for developer rules matching task keywords (e.g. `LocalStorage.md`, `Coding_Guidelines.md`). Automatically injects rules into the prompt to guide the LLM's architecture choices.
+* **Safe Path Parsing:** Normalizes target folder suffixes to prevent LLMs from outputting duplicate nested directories.
+* **Fake-Agent Testing:** Includes a sandbox target directory and dry-run scripts to verify multi-file generation cycles without calling model API servers.
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
-```
-├── agents/
-│   ├── __init__.py
-│   ├── base.py          # OpenAI client wrapper & model auto-detection
-│   ├── planner.py       # Architecture planner agent
-│   ├── developer.py     # Code-generation agent
-│   └── qa.py            # Code & plan reviewer agent
-├── config.py            # Local endpoint and ignore directories config
-├── patch_env.py         # Critical Python compatibility patches
-├── orchestrator.py      # Core state loop, parser, and file writer
-├── main.py              # Beautiful CLI wrapper using 'rich'
-├── requirements.txt     # Project dependencies (openai, rich)
-└── README.md            # Project documentation
+```text
+local-agent-workflow/
+├── src/
+│   ├── main.py            # Entrypoint parsing target project and task
+│   ├── agents/
+│   │   ├── planner.py     # Solves tasks and produces step checklists
+│   │   └── implementation.py # Writes git-diff / overwrite patches
+│   ├── core/
+│   │   ├── controller.py  # Orchestrates iteration loops and feedback
+│   │   ├── memory.py      # Logs state and outputs Obsidian markdown diaries
+│   │   ├── wiki.py        # Keyword RAG retriever for LLM developer rules
+│   │   ├── llm.py         # Standard library HTTP client calling local API
+│   │   └── config.py      # Local environment configuration
+│   ├── indexer/
+│   │   ├── scanner.py     # Generates target project manifests
+│   │   ├── retriever.py   # Extracts codebase context files
+│   │   └── symbol_parser.py # Builds symbol indexing tables
+│   ├── patcher/
+│   │   └── validator.py   # Validates patch structure syntax
+│   └── runner/
+│       ├── compiler.py    # Executes target build scripts
+│       └── tester.py      # Runs target test suites and captures failures
+├── obsidian_vault/        # Synced Obsidian notes (Projects, Learnings, Wiki)
+└── test_target_project/   # Sandbox target directory for local development checks
 ```
 
 ---
 
-## Getting Started
+## 🚀 Setup & Installation
 
-### 1. Prerequisites
+1. **Clone the repository** and install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-- **Python**: 3.7+ (Fully tested on early Python 3.10 alphas)
-- **Local LLM Server**: Start [LM Studio](https://lmstudio.ai/) or [Ollama](https://ollama.com/) with the local server running on `http://localhost:1234/v1` (or change `API_BASE_URL` in `config.py`).
-- **Load Models**: Make sure you have coding/instruct models loaded (e.g., `qwen2.5-coder-7b-instruct`, `qwen3.5-9b`).
+2. **Configure your Local LLM Server:**
+   * Open **LM Studio** or **Ollama** and load a coding model (e.g., `qwen2.5-coder` or `qwen3.5-9b`).
+   * By default, the client expects the local endpoint at `http://localhost:1234/v1` (LM Studio's default). Override this in `src/core/config.py` if needed.
+   * **VRAM Tip:** Keep context capped at `12k` to `16k` in your server settings to avoid VRAM spillover and maintain rapid (>30 t/s) decoding speeds.
 
-### 2. Installation
+---
 
-Clone the repository and install the dependencies:
+## 🕹️ Usage
+
+To launch the agent loop on a target repository:
 
 ```bash
-pip install -r requirements.txt
+python src/main.py <target_directory_path> "<detailed_task_description>"
 ```
 
-### 3. Usage
-
-Run the CLI orchestrator to modify code in a target directory:
-
+### Example:
 ```bash
-python main.py --target-dir /path/to/your/project --prompt "Implement a clear button in calculator.py"
+python src/main.py ../my-web-app "Add an interactive search bar in index.html, style it in style.css, and handle input keypress event listeners in src/main.js. Persist search queries in localStorage."
 ```
 
-If you run `python main.py` without arguments, it will interactively prompt you for a task description and default to writing inside `./target_workspace`.
+---
 
-## Verification & Demonstration
+## 🧠 Managing the LLM Wiki
 
-The system was verified by building a full-featured **Retro Game Cabinet** with audio, CRT effects, and multiple playable games (Snake and Pong):
-1. **Goal**: Create a web-based Retro Game Cabinet featuring functional Web Audio synthesizers, classic retro physics, collision handling, and loop synchronization.
-2. **Attract Mode & Living Specs**: On boot, the orchestrator generated a `project_spec.md` listing the retro audio, keyboard, and viewport bounds, allowing the 9B model to seamlessly map coordinate loops between the independent classes.
-3. **Outcome**: The self-healing loop caught and fixed browser focus bugs and audio context suspension traps, resulting in a fully working, responsive cabinet.
+To prevent the agent from repeating common mistakes (e.g., writing invalid f-strings, forgetting UI buttons, or failing state parsing):
+1. Open the `obsidian_vault` directory inside your **Obsidian Desktop Client**.
+2. Create or edit notes inside the `Wiki/` folder (e.g. `Wiki/LocalStorage.md`).
+3. Write your architectural guidelines or code templates.
+4. When you execute tasks, the agent will query and implement these guidelines automatically!

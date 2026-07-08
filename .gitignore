@@ -19,3 +19,13 @@ Thumbs.db
 
 # Test target workspace (local only)
 test_target_project/
+
+# Orchestrator Local Runs Metadata
+dependency_graph.json
+symbol_index.json
+project_manifest.json
+agent_run.log
+
+# Local Obsidian Vault histories (allow Wiki folder only)
+obsidian_vault/Projects/
+obsidian_vault/Learnings/
