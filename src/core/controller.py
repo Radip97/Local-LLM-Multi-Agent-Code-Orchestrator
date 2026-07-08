@@ -41,7 +41,7 @@ class IterationController:
         self.tester = TestRunner(target_dir)
         
         self.error_parser = ErrorParser()
-        self.rc_analyzer = RootCauseAnalyzer()
+        self.rc_analyzer = RootCauseAnalyzer(target_dir)
         
         self.patch_gen = PatchGenerator(llm_client)
         self.patch_val = SearchReplaceValidator()

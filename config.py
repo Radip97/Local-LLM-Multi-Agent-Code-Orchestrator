@@ -13,6 +13,7 @@ API_KEY      = os.environ.get("LOCAL_LLM_API_KEY",  "lm-studio")
 PLANNER_MODEL   = os.environ.get("PLANNER_MODEL",   "unsloth/qwen3.5-9b")
 DEVELOPER_MODEL = os.environ.get("DEVELOPER_MODEL", "unsloth/qwen3.5-9b")
 QA_MODEL        = os.environ.get("QA_MODEL",        "unsloth/qwen3.5-9b")
+DEBUGGER_MODEL  = os.environ.get("DEBUGGER_MODEL",  "qwen2.5-coder-1.5b-instruct-128k")
 
 # ── Generation settings ─────────────────────────────────────────────────────
 # Qwen thinking-mode defaults for precise coding/web-dev tasks.
