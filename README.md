@@ -1,6 +1,8 @@
-# Local LLM Agent Coding Orchestrator
+# Local LLM Multi-Agent Coding Orchestrator
 
-A local-first, single-LLM autonomous agent orchestrator that resolves coding tasks, applies file patches, and validates changes using a feedback-driven test execution loop. Optimized to run on consumer GPUs using OpenAI-compatible local servers like **LM Studio**, **Ollama**, or **llama.cpp**.
+An autonomous, local-first multi-agent developer loop that resolves coding tasks, applies file patches, and validates changes using a feedback-driven execution loop. 
+
+Features a **Dual-Model Coder + Debugger/Critic architecture** optimized to run on consumer GPUs using OpenAI-compatible local servers like **LM Studio**, **Ollama**, or **vLLM**.
 
 ---
 
@@ -22,7 +24,9 @@ graph TD
         Apply --> Runner[Run Compiler & Tests]
         
         Runner -->|PASS| Done([Success: Return Codebase])
-        Runner -->|FAIL| Memory[Memory: Log Error & Failed Patch]
+        Runner -->|FAIL| Debugger[Debugger Agent: Qwen-1.5B Critic]
+        Debugger --> Shield[Code-Block Shield: Regex Stripper]
+        Shield --> Memory[Memory: Log Error & Conceptual Review]
         Memory -->|Sync| Obsidian[Obsidian Vault: Update Logs]
         Obsidian --> Loop
     end
@@ -32,9 +36,11 @@ graph TD
 
 ## Key Features
 
-* **Dual-Format Patch Engine:** Supports both targeted `SEARCH/REPLACE` blocks and full-file `OVERWRITE ALL` blocks. Uses fuzzy regex whitespace matching to tolerate minor indentation fluctuations in smaller (9B/7B) parameter coder models.
+* **Dual-Model Developer Loop:** Offloads execution checks. Coordinates a larger model (**Qwen 3.5 9B**) as the primary implementation coder, and a lightweight model (**Qwen 2.5 Coder 1.5B**) as a debugger critic.
+* **Regex Code-Block Shield:** Programmatically intercepts the debugger agent's output and strips out any markdown code blocks using regular expressions. This prevents smaller, weaker models from feeding hallucinated/invalid code blocks to the main coder model, ensuring it only receives pure conceptual logical criticism.
+* **Dual-Format Patch Engine:** Supports both targeted `SEARCH/REPLACE` blocks and full-file `OVERWRITE ALL` blocks. Uses fuzzy regex whitespace matching to tolerate minor indentation fluctuations in smaller parameter coder models.
 * **Obsidian Vault Memory Sync:** Automatically syncs execution history, success diffs, and error diagnostics directly into an Obsidian vault (`obsidian_vault/`). Auto-generates local wiki-links (`[[Project Index]]`, `[[Learnings]]`) to build a visual knowledge graph of agent activities.
-* **LLM Wiki Guidelines (RAG):** Scans the `obsidian_vault/Wiki/` directory for developer rules matching task keywords (e.g. `LocalStorage.md`, `Coding_Guidelines.md`). Automatically injects rules into the prompt to guide the LLM's architecture choices.
+* **LLM Wiki Guidelines (RAG):** Scans the `obsidian_vault/Wiki/` directory for developer rules matching task keywords (e.g. `LocalStorage.md`, `Coding_Guidelines.md`). Injects matching rules into prompts automatically to guide structural choices.
 * **Safe Path Parsing:** Normalizes target folder suffixes to prevent LLMs from outputting duplicate nested directories.
 * **Fake-Agent Testing:** Includes a sandbox target directory and dry-run scripts to verify multi-file generation cycles without calling model API servers.
 
@@ -78,9 +84,10 @@ local-agent-workflow/
    ```
 
 2. **Configure your Local LLM Server:**
-   * Open **LM Studio** or **Ollama** and load a coding model (e.g., `qwen2.5-coder` or `qwen3.5-9b`).
-   * By default, the client expects the local endpoint at `http://localhost:1234/v1` (LM Studio's default). Override this in `src/core/config.py` if needed.
-   * **VRAM Tip:** Keep context capped at `12k` to `16k` in your server settings to avoid VRAM spillover and maintain rapid (>30 t/s) decoding speeds.
+   * **Primary Coder Model:** Load a coding model (e.g., `qwen3.5-9b` or `qwen2.5-coder-7b`) in your local inference server.
+   * **Debugger Critic Model:** Concurrently load a lightweight assistant (e.g., `qwen2.5-coder-1.5b-instruct-128k`).
+   * **Environment Settings:** Configure model names and port addresses (e.g., `LLM_MODEL` and `LLM_DEBUGGER_MODEL`) inside `src/core/config.py`. By default, endpoints expect the local LM Studio server at `http://localhost:1234/v1`.
+   * **VRAM Tip:** Keep contexts capped at `12k` to `16k` in your local server settings to avoid VRAM spillover and maintain rapid (>35 t/s) decoding speeds.
 
 ---
 
