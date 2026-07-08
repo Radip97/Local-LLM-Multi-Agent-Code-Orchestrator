@@ -30,7 +30,7 @@ graph TD
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 * **Dual-Format Patch Engine:** Supports both targeted `SEARCH/REPLACE` blocks and full-file `OVERWRITE ALL` blocks. Uses fuzzy regex whitespace matching to tolerate minor indentation fluctuations in smaller (9B/7B) parameter coder models.
 * **Obsidian Vault Memory Sync:** Automatically syncs execution history, success diffs, and error diagnostics directly into an Obsidian vault (`obsidian_vault/`). Auto-generates local wiki-links (`[[Project Index]]`, `[[Learnings]]`) to build a visual knowledge graph of agent activities.
@@ -40,7 +40,7 @@ graph TD
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 local-agent-workflow/
@@ -70,7 +70,7 @@ local-agent-workflow/
 
 ---
 
-## 🚀 Setup & Installation
+## Setup & Installation
 
 1. **Clone the repository** and install dependencies:
    ```bash
@@ -84,7 +84,7 @@ local-agent-workflow/
 
 ---
 
-## 🕹️ Usage
+## Usage
 
 To launch the agent loop on a target repository:
 
@@ -99,7 +99,7 @@ python src/main.py ../my-web-app "Add an interactive search bar in index.html, s
 
 ---
 
-## 🧠 Managing the LLM Wiki
+## Managing the LLM Wiki
 
 To prevent the agent from repeating common mistakes (e.g., writing invalid f-strings, forgetting UI buttons, or failing state parsing):
 1. Open the `obsidian_vault` directory inside your **Obsidian Desktop Client**.
